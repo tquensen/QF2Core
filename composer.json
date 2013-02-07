@@ -1,0 +1,13 @@
+{
+    "name": "QF/QF2",
+    "description": "QF vendor classes",
+    "authors": [
+        {
+            "name": "Thomas Quensen",
+            "email": "tquensen@gmail.com"
+        }
+    ],
+    "require": {
+
+    }
+}
