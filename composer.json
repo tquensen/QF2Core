@@ -1,5 +1,5 @@
 {
-    "name": "QF/QF2",
+    "name": "qf/qf2",
     "description": "QF vendor classes",
     "authors": [
         {
@@ -7,6 +7,9 @@
             "email": "tquensen@gmail.com"
         }
     ],
+    "autoload": {
+        "psr-0": { "QF": "lib/" }
+    },    
     "require": {
 
     }
