@@ -9,6 +9,8 @@ abstract class Entity extends \QF\Entity
     protected static $columns = array();
     protected static $relations = array();
 
+    protected static $maxDatabaseVersion = 0;
+    
     protected static $collectionName = null;
     protected static $autoId = false;
     protected static $repositoryClass = '\\QF\\Mongo\\Repository';
@@ -577,6 +579,11 @@ abstract class Entity extends \QF\Entity
 
     }
     
+    public static function getMaxDatabaseVersion()
+    {
+        return static::$maxDatabaseVersion;
+    }
+    
     public static function getCollectionName()
     {
         return static::$collectionName;
@@ -651,23 +658,27 @@ abstract class Entity extends \QF\Entity
      */
     public static function install($db, $installedVersion = 0, $targetVersion = 0)
     {
-        return 'no installation configured for this Entity';
+        return false; //'no installation configured for this Entity';
         
-        //EXAMPLE / copy&paste
         $collection = static::getRepository($db)->getCollection();
-        switch ($installedVersion) {
-            case 0:
-                $collection->ensureIndex(array('slug' => 1), array('unique' => true));
-            case 1:
-                if ($targetVersion && $targetVersion <= 1) break;
-            /* //for every new version add your code below (including the lines "case NEW_VERSION:" and "if ($targetVersion && $targetVersion <= NEW_VERSION) break;")
-
-                $collection->ensureIndex(array('name' => 1), array());
-
-            case 2:
-                if ($targetVersion && $targetVersion <= 2) break;
-             */
+        
+        if ($installedVersion <= 0 && $targetVersion >= 1) {
+            //VERSION 0->1
+           $collection->ensureIndex(array('slug' => 1), array('unique' => true));
         }
+        
+        if ($installedVersion <= 1 && $targetVersion >= 2) {
+            //VERSION 1->2
+            $collection->ensureIndex(array('name' => 1), array());
+        }
+
+        //for every new Version, copy&paste this IF block and set MAX_VERSION to the new version
+        /*
+        if ($installedVersion <= MAX_VERSION - 1 && $targetVersion >= MAX_VERSION) {
+            //VERSION MAX_VERSION-1->MAX_VERSION
+        }
+        */
+
         return true;
     }
 
@@ -676,21 +687,26 @@ abstract class Entity extends \QF\Entity
      */
     public static function uninstall($db, $installedVersion = 0, $targetVersion = 0)
     {
-        return 'no installation configured for this Entity';
+        return false; //'no installation configured for this Entity';
         
-        //EXAMPLE / copy&paste
         $collection = static::getRepository($db)->getCollection();
-        SWITCH ($installedVersion) {
-            case 0:
-            /* //for every new version add your code directly below "case 0:", beginning with "case NEW_VERSION:" and "if ($targetVersion >= NEW_VERSION) break;"
-            case 2:
-                if ($targetVersion >= 2) break;
-                $collection->deleteIndex("name");
-             */
-            case 1:
-                if ($targetVersion >= 1) break;
-                $collection->drop();
+        
+        //for every new Version, copy&paste this IF block and set MAX_VERSION to the new version
+        /*
+        if ($installedVersion >= MAX_VERSION && $targetVersion <= MAX_VERSION - 1) {
+            //VERSION MAX_VERSION->MAX_VERSION-1
         }
-        return true;
+        */
+        
+        if ($installedVersion >= 2 && $targetVersion <= 1) {
+            //VERSION 2->1
+            $collection->deleteIndex("name");
+        }
+        
+        if ($installedVersion >= 1 && $targetVersion <= 0) {
+            //VERSION 1->0
+            $collection->drop();
+        }
     }
+    
 }

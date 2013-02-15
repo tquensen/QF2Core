@@ -97,6 +97,25 @@ class User
         return $this->checkRights($this->roles[$this->role], $rights);
     }
     
+    /**
+     *
+     * @param string $role the role to check
+     * @param string|array $rights the name of the right as string ('user', 'administrator', ..) or as array of rights
+     * @return bool whether the current user has the required right or not / returns true if the right is 0
+     */
+    public function roleHasRight($role, $rights)
+    {
+        if (!$rights) {
+            return true;
+        }
+        
+        if (empty($this->roles[$role])) {
+            return false;
+        }
+        
+        return $this->checkRights($this->roles[$role], $rights);
+    }
+    
     protected function checkRights($givenRights, $requiredRights, $and = true)
     {
         if ($and) {

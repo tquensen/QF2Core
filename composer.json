@@ -1,5 +1,5 @@
 {
-    "name": "qf/qf2",
+    "name": "tqn/qf2",
     "description": "QF vendor classes",
     "authors": [
         {
@@ -11,6 +11,6 @@
         "psr-0": { "QF": "lib/" }
     },    
     "require": {
-
+        
     }
 }

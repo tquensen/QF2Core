@@ -319,7 +319,7 @@ class Core
             foreach ((array) $postData as $postKey => $postValue) {
                 $form->setElement(new \QF\Form\Element\Hidden($postKey, array('alwaysDisplayDefault' => true, 'defaultValue' => $postValue)));
             }
-            return $this->parse('DefaultModule', 'form/form', array('form' => $form));
+            return $this->parse('DefaultModule', 'form/form', array('form' => $form, '_format' => false));
         }
     }
 
