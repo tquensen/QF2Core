@@ -1,7 +1,7 @@
 <?php
 namespace QF;
 
-class User
+class Security
 {
     protected $roles = array();
     
@@ -21,14 +21,14 @@ class User
         }
     }
     
-    public function login($role, $user = null, $persistent = true) {
+    public function login($role, $user = null, $persistent = false) {
         $this->setRole($role, $persistent);
         $this->setUser($user, $persistent);
     }
     
-    public function logout($clearAttributes = false) {
-        $this->setRole('GUEST', true);
-        $this->setUser(null, true);
+    public function logout($clearAttributes = false, $persistent = true) {
+        $this->setRole('GUEST', $persistent);
+        $this->setUser(null, $persistent);
         if ($clearAttributes) {
             $this->setAttributes(array(), true);
         }
@@ -51,28 +51,28 @@ class User
         return isset($this->attributes[$key]) ? $this->attributes[$key] : null;
     }
     
-    public function setUser($user, $persistent = true) {
+    public function setUser($user, $persistent = false) {
         $this->user = $user;
         if ($persistent) {
             $_SESSION['_QF_USER']['user'] = $user;
         }
     }
 
-    public function setRole($role, $persistent = true) {
+    public function setRole($role, $persistent = false) {
         $this->role = $role;
         if ($persistent) {
             $_SESSION['_QF_USER']['role'] = $role;
         }
     }
     
-    public function setAttributes($attributes, $persistent = true) {
+    public function setAttributes($attributes, $persistent = false) {
         $this->attributes = (array) $attributes;
         if ($persistent) {
             $_SESSION['_QF_USER']['attributes'] = (array) $attributes;
         }
     }
     
-    public function setAttribute($key, $value, $persistent = true) {
+    public function setAttribute($key, $value, $persistent = false) {
         $this->attributes[$key] = $value;
         if ($persistent) {
             $_SESSION['_QF_USER']['attributes'][$key] = $value;

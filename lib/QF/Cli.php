@@ -3,12 +3,11 @@ namespace QF;
 
 class Cli
 {
-    /**
-     *
-     * @var \QF\Config
-     */
-    protected $tasks = null;
 
+    protected $container = null;
+    
+    protected $tasks = null;
+    
     public function __construct($tasks)
     {
         $this->tasks = $tasks;
@@ -20,17 +19,16 @@ class Cli
      * @param string $class the class containing the task
      * @param string $task the task name
      * @param array $parameter parameters for the task
-     * @param mixed $c the DI container
      * @return string the parsed output of the task
      */
-    public function callTask($class, $task, $parameter = array(), $c = null)
+    public function callTask($class, $task, $parameter = array())
     {
         if (!class_exists($class) || !method_exists($class, $task)) {
             throw new \Exception('task '.$class.'->'.$task.' not found');
         }
         
         $class = new $class();
-        return $class->$task($parameter, $c);
+        return $class->$task($parameter, $this);
     }
 
     /**
@@ -146,6 +144,16 @@ class Cli
 //            }
 //        }
         return array_merge($parameters, $values);
+    }
+    
+    public function getContainer()
+    {
+        return $this->container;
+    }
+    
+    public function setContainer($container)
+    {
+        $this->container = $container;
     }
 
 }

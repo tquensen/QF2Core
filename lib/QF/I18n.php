@@ -22,7 +22,9 @@ class I18n
      * initializes the translation class
      *
      * @param string $translationDir the path to the translation files
-     * @param string $language the target language
+     * @param string $moduleDir the path to the modules
+     * @param string $languages the available languages
+     * @param string $defaultLanguage default languagew
      */
     function __construct($translationDir, $moduleDir, $languages, $defaultLanguage)
     {
