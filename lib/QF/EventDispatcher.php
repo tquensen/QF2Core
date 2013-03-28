@@ -24,7 +24,6 @@ class EventDispatcher
         $event->setDispatcher($this);
         $event->setName($eventName);
         
-        $processed = false;
         foreach ($this->getListeners($eventName) as $listener) {
             call_user_func($listener, $event);
             if ($event->isPropagationStopped()) {

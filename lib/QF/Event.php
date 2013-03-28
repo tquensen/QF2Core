@@ -6,14 +6,19 @@ class Event implements \ArrayAccess, \IteratorAggregate
 {
     
     protected $propagationStopped = false;
-    protected $eventDispatcher;
-    protected $name;
+    protected $eventDispatcher = null;
+    protected $name = '';
+    protected $value = null;
+    
+    protected $subject = null;
     
     protected $properties = array();
 
-    public function __construct($properties = array())
+    public function __construct($subject = null, $properties = array(), $value = null)
     {
+        $this->subject = $subject;
         $this->properties = $properties;
+        $this->value = $value;
     }
     
     public function isPropagationStopped()
@@ -46,6 +51,30 @@ class Event implements \ArrayAccess, \IteratorAggregate
         $this->name = $name;
     }
 
+    public function getValue()
+    {
+        return $this->value;
+    }
+
+    public function setValue($value, $final = false)
+    {
+        $this->value = $value;
+        if ($final) {
+            $this->stopPropagation();
+        }
+    }
+
+    public function getSubject()
+    {
+        return $this->subject;
+    }
+
+    public function setSubject($subject)
+    {
+        $this->subject = $subject;
+    }
+
+        
     public function getProperties()
     {
         return $this->properties;
