@@ -21,13 +21,13 @@ class ViewManager
     protected $staticUrl = null;
     
     protected $templatePath = null;
-    protected $modulePath = null;
     protected $webPath = null;
-    
+
+    protected $modules = array();
+
     public function __construct()
     {       
         $this->templatePath = __DIR__.'../../templates';
-        $this->modulePath = __DIR__.'../../modules';
         $this->webPath = __DIR__.'../../web';
     }
     
@@ -54,15 +54,17 @@ class ViewManager
         $theme = $this->theme;
         $themeString = $theme ? $theme . '/' : '';
         
+        $modulepath = $module && isset($this->modules[$module]) ? $this->modules[$module] : false;
+        
         if (!$baseurl = $this->staticUrl) {
             $baseurl = $this->baseUrl ?: '/';
         }
-        if ($module) {
+        if ($module && $modulepath) {
             if ($theme && file_exists($this->templatePath . '/' . $themeString . 'public/modules/'.$module.'/'.$file)) {
                 return $baseurl . 'templates/' . $themeString . 'modules/'.$module.'/'.$file . ($cacheBuster ? '?'. filemtime($this->templatePath . '/' . $themeString . 'public/modules/'.$module.'/'.$file) : '');
             } elseif (file_exists($this->templatePath . '/default/public/modules/'.$module.'/'.$file)) {
                 return $baseurl . 'templates/modules/'.$module.'/'.$file . ($cacheBuster ? '?'. filemtime($this->templatePath . '/default/public/modules/'.$module.'/'.$file) : '');
-            } elseif (file_exists($this->modulePath . '/'.$module.'/public/'.$file)) {
+            } elseif (file_exists($modulepath.'/public/'.$file)) {
                 return $baseurl . 'modules/'.$module.'/'.$file . ($cacheBuster ? '?'. filemtime($this->modulePath . '/'.$module.'/public/'.$file) : '');
             } else {
                 return $baseurl . 'modules/'.$module.'/'.$file;
@@ -95,6 +97,8 @@ class ViewManager
         $_format = isset($parameter['_format']) ? $parameter['_format'] : $this->format;
         $_formatString = $_format ? '.' . $_format : '';
         $_lang = !empty($this->i18n) ? $this->getI18n()->getCurrentLanguage() : false;
+        
+        $_modulepath = $module && isset($this->modules[$module]) ? $this->modules[$module] : false;
 
         if ($_lang && $_theme && file_exists($this->templatePath . '/' .$_themeString. 'modules/' . $module . '/' . $_lang . '/' . $view . $_formatString . '.php')) {
             $_file = $this->templatePath . '/' .$_themeString. 'modules/' . $module . '/' . $_lang . '/' . $view . $_formatString . '.php';
@@ -104,10 +108,10 @@ class ViewManager
             $_file = $this->templatePath . '/default/modules/' . $module . '/' . $_lang . '/' . $view . $_formatString . '.php';
         } elseif ($_lang && !$_format && file_exists($this->templatePath . '/default/modules/' . $module . '/' . $_lang . '/' . $view . '.' . $this->defaultFormat . '.php')) {
             $_file = $this->templatePath . '/default/modules/' . $module . '/' . $_lang . '/' . $view . '.' . $this->defaultFormat . '.php';
-        } elseif ($_lang && file_exists($this->modulePath . '/' . $module . '/views/' . $_lang . '/' . $view . $_formatString . '.php')) {
-            $_file = $this->modulePath . '/' . $module . '/views/' . $_lang . '/' . $view . $_formatString . '.php';
-        } elseif ($_lang && !$_format && file_exists($this->modulePath . '/' . $module . '/views/' . $_lang . '/' . $view . '.' . $this->defaultFormat . '.php')) {
-            $_file = $this->modulePath . '/' . $module . '/views/' . $_lang . '/' . $view . '.' . $this->defaultFormat . '.php';
+        } elseif ($_lang && file_exists($_modulepath . '/views/' . $_lang . '/' . $view . $_formatString . '.php')) {
+            $_file = $_modulepath . '/views/' . $_lang . '/' . $view . $_formatString . '.php';
+        } elseif ($_lang && !$_format && file_exists($_modulepath . '/views/' . $_lang . '/' . $view . '.' . $this->defaultFormat . '.php')) {
+            $_file = $_modulepath . '/views/' . $_lang . '/' . $view . '.' . $this->defaultFormat . '.php';
         } elseif ($_theme && file_exists($this->templatePath . '/' .$_themeString. 'modules/' . $module . '/' . $view . $_formatString . '.php')) {
             $_file = $this->templatePath . '/' .$_themeString. 'modules/' . $module . '/' . $view . $_formatString . '.php';
         } elseif ($_theme && !$_format && file_exists($this->templatePath . '/' .$_themeString. 'modules/' . $module . '/' . $view . '.' . $this->defaultFormat . '.php')) {
@@ -116,10 +120,10 @@ class ViewManager
             $_file = $this->templatePath . '/default/modules/' . $module . '/' . $view . $_formatString . '.php';
         } elseif (!$_format && file_exists($this->templatePath . '/default/modules/' . $module . '/' . $view . '.' . $this->defaultFormat . '.php')) {
             $_file = $this->templatePath . '/default/modules/' . $module . '/' . $view . '.' . $this->defaultFormat . '.php';
-        } elseif (file_exists($this->modulePath . '/' . $module . '/views/' . $view . $_formatString . '.php')) {
-            $_file = $this->modulePath . '/' . $module . '/views/' . $view . $_formatString . '.php';
-        } elseif (!$_format && file_exists($this->modulePath . '/' . $module . '/views/' . $view . '.' . $this->defaultFormat . '.php')) {
-            $_file = $this->modulePath . '/' . $module . '/views/' . $view . '.' . $this->defaultFormat . '.php';
+        } elseif (file_exists($_modulepath . '/views/' . $view . $_formatString . '.php')) {
+            $_file = $_modulepath . '/views/' . $view . $_formatString . '.php';
+        } elseif (!$_format && file_exists($_modulepath . '/views/' . $view . '.' . $this->defaultFormat . '.php')) {
+            $_file = $_modulepath . '/views/' . $view . '.' . $this->defaultFormat . '.php';
         } else {
             throw new HttpException('view not found', 404);
         }
@@ -155,6 +159,7 @@ class ViewManager
         $_format = $this->format;
         $_defaultFormat = $this->defaultFormat;
         $_lang = !empty($this->i18n) ? $this->getI18n()->getCurrentLanguage() : false;
+        
         $_file = false;
 
         if (is_array($_templateName)) {
@@ -285,9 +290,9 @@ class ViewManager
         return $this->templatePath;
     }
 
-    public function getModulePath()
+    public function getModules()
     {
-        return $this->modulePath;
+        return $this->modules;
     }
     
     public function getWebPath()
@@ -350,9 +355,9 @@ class ViewManager
         $this->templatePath = $templatePath;
     }
 
-    public function setModulePath($modulePath)
+    public function setModules($modules)
     {
-        $this->modulePath = $modulePath;
+        $this->modules = $modules;
     }
     
     public function setWebPath($webPath)

@@ -13,45 +13,28 @@ class I18n
     protected $currentLanguage = null;
     protected $defaultLanguage = null;
     
-    protected $translationDir = '';
-    protected $moduleDir = '';
+    protected $translationDirectories = array();
     
     protected $data = array();
+    
+    protected $dataLoaded = false;
 
     /**
      * initializes the translation class
      *
-     * @param string $translationDir the path to the translation files
+     * @param string $translationDirectories array of (path => namespace) pairs
      * @param string $moduleDir the path to the modules
      * @param string $languages the available languages
      * @param string $defaultLanguage default languagew
      */
-    function __construct($translationDir, $moduleDir, $languages, $defaultLanguage)
+    function __construct($translationDirectories, $languages, $defaultLanguage)
     {
         $this->languages = $languages;
-        $this->translationDir = $translationDir;
+        $this->translationDirectories = $translationDirectories;
         $this->defaultLanguage = $defaultLanguage;
         $this->currentLanguage = $this->defaultLanguage;
-        
-        $this->moduleDir = rtrim($moduleDir, '/');
-        
-        $i18n = &$this->data;
-        if (file_exists($this->translationDir . '/' .$this->currentLanguage . '.php')) {
-            include($this->translationDir . '/' .$this->currentLanguage . '.php');
-        }
-        $this->translations['default'] = new Translation(!empty($this->data['default']) ? $this->data['default'] : array());
     }
-    
-    public function loadModule($module)
-    {
-        if (file_exists($this->moduleDir.'/'.$module.'/data/i18n/'.$this->currentLanguage . '.php')) {
-            if (!isset($this->data[$module])) {
-                $this->data[$module] = array();
-            }
-            $i18n = &$this->data[$module];
-            include $this->moduleDir . '/'.$module.'/data/i18n/'.$this->currentLanguage . '.php';
-        }
-    }
+
     
     public function getLanguages()
     {
@@ -79,14 +62,8 @@ class I18n
             return;
         }
         $this->currentLanguage = $currentLanguage;
-        $this->translations = array();
-        $this->data = array();
         
-        $i18n = &$this->data;
-        if (file_exists($this->translationDir . '/' .$this->currentLanguage . '.php')) {
-            include($this->translationDir . '/' .$this->currentLanguage . '.php');
-        }
-        $this->translations['default'] = new Translation(!empty($this->data['default']) ? $this->data['default'] : array());
+        $this->dataLoaded = false;
     }
     
     public function setDefaultLanguage($defaultLanguage)
@@ -100,9 +77,28 @@ class I18n
      */
     public function get($ns = 'default')
     {
+        if (!$this->dataLoaded) {
+            $this->loadTranslationData();
+        }
         if (empty($this->translations[$ns])) {
             $this->translations[$ns] = new Translation(!empty($this->data[$ns]) ? $this->data[$ns] : array());
         }
         return $this->translations[$ns];
+    }
+    
+    protected function loadTranslationData()
+    {
+        $this->translations = array();
+        $this->data = array();
+        
+        foreach ($this->translationDirectories as $dir) {
+            $dir = rtrim($dir, '/');
+            $i18n = &$this->data;
+            if (file_exists($dir . '/' .$this->currentLanguage . '.php')) {
+                include($dir . '/' .$this->currentLanguage . '.php');
+            }
+        }
+        
+        $this->dataLoaded = true;
     }
 }

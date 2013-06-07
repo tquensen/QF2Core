@@ -145,18 +145,32 @@ class Security
         }
     }
     
-    public function generateFormToken($name = true)
+    public function generateFormToken($name = 'form_token', $unique = false)
     {
-        $token = md5(time().rand(10000, 99999));
-        $_SESSION['_QF_FORM_TOKEN'][$token] = $name;
+        
+        if ($unique || empty($_SESSION['_QF_FORM_TOKEN'][$name])) {
+            $token = time().'|'.md5(rand(10000, 99999));
+            $_SESSION['_QF_FORM_TOKEN'][$name] = $token;
+        } else {
+            $token = $_SESSION['_QF_FORM_TOKEN'][$name];
+        }
         return $token;
     }
 
-    public function checkFormToken($name = 'form_token')
+    public function checkFormToken($name = 'form_token', $unique = false, $maxAge = false)
     {
         $token = !empty($_REQUEST[$name]) ? $_REQUEST[$name] : false;
-        if (!empty($token) && !empty($_SESSION['_QF_FORM_TOKEN'][$token]) && $_SESSION['_QF_FORM_TOKEN'][$token] == $name) {
-            unset($_SESSION['_QF_FORM_TOKEN'][$token]);
+        if (!empty($token) && !empty($_SESSION['_QF_FORM_TOKEN'][$name]) && $_SESSION['_QF_FORM_TOKEN'][$name] == $token) {
+            if ($unique) {
+                unset($_SESSION['_QF_FORM_TOKEN'][$name]);
+            }
+            if ($maxAge) {
+                $age = explode('|', $token, 2);
+                $age = (int) $age[0];
+                if (time() - $age > $maxAge) {
+                    return false;
+                }
+            }
             return true;
         } else {
             return false;

@@ -26,6 +26,8 @@ class Form
         $this->options['showGlobalErrors'] = true;
         $this->options['requiredMark'] = ' * ';
         $this->options['useFormToken'] = true;
+        $this->options['uniqueFormToken'] = false;
+        $this->options['maxAgeFormToken'] = false;
         $this->options['formTokenName'] = $this->name.'__form_token';
         $this->options['formTokenErrorMessage'] = 'invalid Form Token';
         $this->options = array_merge($this->options, (array)$options);
@@ -36,8 +38,13 @@ class Form
         if (empty($this->options['useFormToken']) || empty($this->options['formTokenName'])) {
             return false;
         }
-        $token = md5(time().rand(10000, 99999));
-        $_SESSION['_QF_FORM_TOKEN'][$token] = $this->options['formTokenName'];
+        
+        if ($this->options['uniqueFormToken'] || empty($_SESSION['_QF_FORM_TOKEN'][$this->options['formTokenName']])) {
+            $token = time().'|'.md5(rand(10000, 99999));
+            $_SESSION['_QF_FORM_TOKEN'][$this->options['formTokenName']] = $token;
+        } else {
+            $token = $_SESSION['_QF_FORM_TOKEN'][$this->options['formTokenName']];
+        }
         return $token;
     }
 
@@ -47,8 +54,17 @@ class Form
             return false;
         }
         $token = $_REQUEST[$this->options['formTokenName']];
-        if (!empty($_SESSION['_QF_FORM_TOKEN'][$token]) && $_SESSION['_QF_FORM_TOKEN'][$token] == $this->options['formTokenName']) {
-            unset($_SESSION['_QF_FORM_TOKEN'][$token]);
+        if (!empty($_SESSION['_QF_FORM_TOKEN'][$this->options['formTokenName']]) && $_SESSION['_QF_FORM_TOKEN'][$this->options['formTokenName']] == $token) {
+            if ($this->options['uniqueFormToken']) {
+                unset($_SESSION['_QF_FORM_TOKEN'][$this->options['formTokenName']]);
+            }
+            if ($this->options['maxAgeFormToken']) {
+                $age = explode('|', $token, 2);
+                $age = (int) $age[0];
+                if (time() - $age > $this->options['maxAgeFormToken']) {
+                    return false;
+                }
+            }
             return true;
         } else {
             return false;
