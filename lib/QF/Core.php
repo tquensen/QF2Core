@@ -9,6 +9,7 @@ class Core
     protected $i18n = null;
     protected $security = null;
     protected $view = null;
+    protected $eventDispatcher = null;
     
     protected $routes = array();
     
@@ -132,27 +133,15 @@ class Core
      * @param array $parameter parameters for the page
      * @return @return string the parsed output of the page
      */
-    public function callRoute($route, $parameter = array(), $setAsMainRoute = false)
+    public function callRoute($route, $parameter = array())
     {
         $routeData = $this->getRoute($route);
         if (!$routeData || empty($routeData['controller']) || empty($routeData['action'])) {
             throw new HttpException('page not found', 404);
         }
         
-        if (!empty($routeData['rights'])) {
-            if (empty($this->security)) {
-                throw new HttpException('permission denied', 403);
-            }
-            if (!$this->getSecurity()->userHasRight($routeData['rights'])) {        
-                if ($this->getSecurity()->getRole() === 'GUEST') {
-                    throw new HttpException('login required', 401);
-                } else {
-                    throw new HttpException('permission denied', 403);
-                }
-            }
-        }
-
-
+        $this->security->checkRouteRights($routeData);
+        
         if (!empty($routeData['parameter'])) {
             $parameter = array_merge($routeData['parameter'], $parameter);
         }
@@ -315,6 +304,11 @@ class Core
     {
         return $this->view;
     }
+    
+    public function getEventDispatcher()
+    {
+        return $this->eventDispatcher;
+    }
 
     public function getRoutes()
     {
@@ -364,6 +358,11 @@ class Core
     public function setView($view)
     {
         $this->view = $view;
+    }
+    
+    public function setEventDispatcher($eventDispatcher)
+    {
+        $this->eventDispatcher = $eventDispatcher;
     }
 
     public function setRoutes($routes)

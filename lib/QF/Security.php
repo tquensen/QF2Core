@@ -4,6 +4,8 @@ namespace QF;
 class Security
 {
     protected $roles = array();
+    protected $authenticationMode = 'grant';
+    protected $secureDefault = false;
     
     protected $attributes = array();
     
@@ -79,6 +81,36 @@ class Security
         }
     }
     
+    public function getRoles()
+    {
+        return $this->roles;
+    }
+
+    public function setRoles($roles)
+    {
+        $this->roles = $roles;
+    }
+
+    public function getAuthenticationMode()
+    {
+        return $this->authenticationMode;
+    }
+
+    public function setAuthenticationMode($authenticationMode)
+    {
+        $this->authenticationMode = $authenticationMode;
+    }
+
+    public function getSecureDefault()
+    {
+        return $this->secureDefault;
+    }
+
+    public function setSecureDefault($secureDefault)
+    {
+        $this->secureDefault = $secureDefault;
+    }
+      
     /**
      *
      * @param string|array $rights the name of the right as string ('user', 'administrator', ..) or as array of rights
@@ -174,6 +206,56 @@ class Security
             return true;
         } else {
             return false;
+        }
+    }
+    
+    public function checkRouteRights($routeData)
+    {
+        $eventData = array(
+            'routeData' => $routeData,
+            'authenticationMode' => $this->authenticationMode,
+            'secureDefault' => $this->secureDefault
+        );
+        
+        $event = new Event($this, $eventData, 0);
+        $this->eventDispatcher->notify('security.checkRouteRights', $event);
+        
+        $authorized = !$this->secureDefault;
+        
+        //was processed by at least one authorization
+        if ($event->getValue()) {
+            //mode = deny and was denied
+            if ($event->propaginationStopped() && $this->authenticationMode == 'deny') {
+                $authorized = false;
+            //mode = grant, and was granted    
+            } elseif ($event->propaginationStopped() && $this->authenticationMode == 'grant') {
+                $authorized = true;
+            }
+        }
+        
+        if (!$authorized) {
+            if ($this->getRole() === 'GUEST') {
+                throw new HttpException('login required', 401);
+            } else {
+                throw new HttpException('permission denied', 403);
+            }
+        }
+    }
+    
+    public function checkRouteRightsListener(Event $event)
+    {
+        if (!empty($event['routeData']['rights'])) {
+            //processed
+            $event->setValue(true);
+            if ($this->getSecurity()->userHasRight($event['routeData']['rights'])) {
+                if ($event['authenticationMode'] == 'grant') {
+                    $event->stopPropagation();
+                }
+            } else {
+                if ($event['authenticationMode'] == 'deny') {
+                    $event->stopPropagation();
+                }
+            }
         }
     }
 }

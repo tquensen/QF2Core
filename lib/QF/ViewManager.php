@@ -130,7 +130,7 @@ class ViewManager
 
         extract($parameter, \EXTR_OVERWRITE);
         $view = $this;
-        $c = $this->getContainer;
+        $c = $this->getContainer();
         $qf = $c['core'];
         ob_start();
         try {
@@ -223,7 +223,7 @@ class ViewManager
         extract($this->parameter, \EXTR_OVERWRITE);
         extract($parameter, \EXTR_OVERWRITE);
         $view = $this;
-        $c = $this->getContainer;
+        $c = $this->getContainer();
         $qf = $c['core'];
         ob_start();
         try {

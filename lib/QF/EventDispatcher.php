@@ -21,7 +21,7 @@ class EventDispatcher
             $event = new Event();
         }
         
-        $event->setDispatcher($this);
+        $event->setEventDispatcher($this);
         $event->setName($eventName);
         
         foreach ($this->getListeners($eventName) as $listener) {
