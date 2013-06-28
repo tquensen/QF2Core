@@ -342,11 +342,16 @@ abstract class Entity extends \QF\Entity
                         $this->getDB()->prepare('UPDATE '.$data[0]::getTableName().' SET '.$data[2].' = ? WHERE '.$data[0]::getIdentifier().' = ? AND '.$data[2].' = ?')->execute(array(null, $identifier, $this->{static::getIdentifier()}));
                     }
                 }
-            } elseif ($data[2] == static::getIdentifier()) {
+            } elseif ($data[2] == $data[0]::getIdentifier()) {
+                $linkedIdentifier = $this->{$data[1]};
                 $this->{$data[1]} = null;
                 $this->save();
-                if ($delete && is_object($identifier)) {
-                    $identifier->delete();
+                if ($delete) {
+                    if (is_object($identifier)) {
+                        $identifier->delete();
+                    } elseif ($linkedIdentifier && ($identifier === true || $identifier == $linkedIdentifier)) {
+                        $this->getDB()->prepare('DELETE FROM '.$data[0]::getTableName().' WHERE '.$data[0]::getIdentifier().' = ?')->execute(array($linkedIdentifier));
+                    }
                 }
             }
         } else {
