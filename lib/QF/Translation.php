@@ -43,7 +43,7 @@ class Translation implements \ArrayAccess
         if ($offset === null) {
             return;
         }
-        $this->set($offset, $value);
+        $this->__set($offset, $data);
     }
 
     public function offsetGet($offset)

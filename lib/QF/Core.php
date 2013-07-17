@@ -12,11 +12,15 @@ class Core
     protected $eventDispatcher = null;
     
     protected $routes = array();
+    protected $widgets = array();
     
     protected $homeRoute = null;
     
     protected $currentRoute = null;
     protected $currentRouteParameter = null;
+    
+    protected $currentRouteController = null;
+    protected $currentRouteAction = null;
     
     protected $requestMethod = null;
     
@@ -131,9 +135,10 @@ class Core
      *
      * @param string $route the key of the route to get
      * @param array $parameter parameters for the page
+     * @param bool $isMainRoute if this is the main route call
      * @return @return string the parsed output of the page
      */
-    public function callRoute($route, $parameter = array())
+    public function callRoute($route, $parameter = array(), $isMainRoute = false)
     {
         $routeData = $this->getRoute($route);
         if (!$routeData || empty($routeData['controller']) || empty($routeData['action'])) {
@@ -145,8 +150,111 @@ class Core
         if (!empty($routeData['parameter'])) {
             $parameter = array_merge($routeData['parameter'], $parameter);
         }
+        
+        if ($isMainRoute) {
+            $this->currentRouteController = $routeData['controller'];
+            $this->currentRouteAction = $routeData['action'];
+        }
           
         return $this->callAction($routeData['controller'], $routeData['action'], $parameter);       
+    }
+    
+    /**
+     *
+     * @param string $slot the key of the slot to get
+     * @param array $parameter parameters for the widgets
+     * @param bool|string $glue the glue to implode the widget responses, or false to return an array
+     * @return array|string the parsed output of the widgets as array or string (if glue is set)
+     */
+    public function callSlot($slot, $parameter = array(), $glue = false)
+    {
+        $slotData = $this->getSlot($slot);
+        if (!$slotData) {
+            return $glue === false ? array() : '';
+        }
+        
+        uasort($slotData, function($a, $b) {
+            if (!isset($a['position'])) {
+                $a['position'] = 0;
+            }
+            if (!isset($b['position'])) {
+                $b['position'] = 0;
+            }
+            if ($a['position'] == $b['position']) {
+                return 0;
+            }
+            return ($a['position'] < $b['position']) ? 1 : -1;
+        });
+        
+        $response = array();
+        
+        $route = $this->getCurrentRoute();
+        $format = $this->getView()->getFormat();
+        $defaultFormat = $this->getView()->getDefaultFormat();
+        $template = $this->getView()->getTemplate();
+        $theme = $this->getView()->getTheme();
+        
+        foreach ($slotData as $widget) {
+            if (empty($widget['controller']) || empty($widget['action'])) {
+                continue;
+            }
+            
+            if (!empty($widget['show'])) {
+                if (is_string($widget['show']) && $widget['show'] != $route) {
+                    continue;
+                } elseif(is_array($widget['show']) && !in_array($route, $widget['show'])) {
+                    continue;
+                }
+            }
+            if (!empty($widget['hide'])) {
+                if (is_string($widget['hide']) && $widget['hide'] == $route) {
+                    continue;
+                } elseif(is_array($widget['hide']) && in_array($route, $widget['hide'])) {
+                    continue;
+                }
+            }
+
+            if (!empty($widget['format'])) {
+                if ($widget['format'] == 'default') {
+                    $widget['format'] = $defaultFormat;
+                }
+
+                if (!is_array($widget['format']) && $widget['format'] != 'all' && $widget['format'] != $format) {
+                    continue;
+                } elseif(is_array($widget['format']) && !in_array($format, $widget['format'])) {
+                    continue;
+                }
+            }
+
+            if (!empty($widget['theme'])) {
+                if (!is_array($widget['theme']) && $widget['theme'] != 'all' && $widget['theme'] != $theme) {
+                    continue;
+                } elseif(is_array($widget['theme']) && !in_array($theme, $widget['theme'])) {
+                    continue;
+                }
+            }
+
+            if ($widget['template']) {
+                if (is_string($widget['template']) && $widget['template'] != 'all' && $widget['template'] != $template) {
+                    continue;
+                } elseif(is_array($widget['template']) && !in_array($template, $widget['template'])) {
+                    continue;
+                }
+            }
+            
+            try {
+                $this->security->checkRouteRights($widget);
+                $params = !empty($widget['parameter']) ? $widget['parameter'] : array();
+                $params['slot'] = $slot;
+                $params['slotData'] = $parameter;
+                $response[] = $this->callAction($widget['controller'], $widget['action'], $params);  
+            } catch (\Exception $e) {
+                continue;
+            } 
+            
+        }
+
+        return $glue === false ? $response : implode($glue, $response);     
     }
     
     /**
@@ -315,6 +423,11 @@ class Core
         return $this->routes;
     }
     
+    public function getWidgets()
+    {
+        return $this->widgets;
+    }
+    
     public function getHomeRoute()
     {
         return $this->homeRoute;
@@ -333,6 +446,16 @@ class Core
     public function getCurrentRouteParameter()
     {
         return $this->currentRouteParameter;
+    }
+    
+    public function getCurrentRouteController()
+    {
+        return $this->currentRouteController;
+    }
+
+    public function getCurrentRouteAction()
+    {
+        return $this->currentRouteAction;
     }
     
     public function getRequestHash($includeI18n = false)
@@ -370,7 +493,12 @@ class Core
         $this->routes = $routes;
     }
 
-    public function setHomeRoute($homeRoute)
+    public function setWidgets($widgets)
+    {
+        $this->widgets = $widgets;
+    }
+
+        public function setHomeRoute($homeRoute)
     {
         $this->homeRoute = $homeRoute;
     }
@@ -388,6 +516,16 @@ class Core
     public function setCurrentRouteParameter($currentRouteParameter)
     {
         $this->currentRouteParameter = $currentRouteParameter;
+    }
+    
+    public function setCurrentRouteController($currentRouteController)
+    {
+        $this->currentRouteController = $currentRouteController;
+    }
+
+    public function setCurrentRouteAction($currentRouteAction)
+    {
+        $this->currentRouteAction = $currentRouteAction;
     }
         
     protected function generateRoutePattern($routeData, $language) {
