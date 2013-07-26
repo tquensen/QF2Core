@@ -71,8 +71,6 @@ class Core
                         }
                     }
                     
-                    $this->currentRoute = $routeName;
-                    $this->currentRouteParameter = $routeParameters;
                     if (array_key_exists('_format', $routeParameters)) {
                         $this->getView()->setFormat($routeParameters['_format']);
                     }
@@ -145,16 +143,18 @@ class Core
             throw new HttpException('page not found', 404);
         }
         
-        $this->security->checkRouteRights($routeData);
-        
         if (!empty($routeData['parameter'])) {
             $parameter = array_merge($routeData['parameter'], $parameter);
         }
         
         if ($isMainRoute) {
+            $this->currentRoute = $route;
+            $this->currentRouteParameter = $parameter;
             $this->currentRouteController = $routeData['controller'];
             $this->currentRouteAction = $routeData['action'];
         }
+        
+        $this->security->checkRouteRights($routeData);
           
         return $this->callAction($routeData['controller'], $routeData['action'], $parameter);       
     }
