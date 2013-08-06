@@ -328,12 +328,14 @@ class Repository
      *          'conditions' => array|string additional where conditions to filter for
      *          'values' => array values for ?-placeholders in the conditions
      *          'order' => string the order of the related entries
-     *          'count' => false|string fetch only the number of related entries, not the entries themself
+     *          'aggregate' => false|array fetch only an aggregated value, not the entries themself
+     *                         if not false, must be an array('aggregationFunction' => 'targetProperty')
      * 
      *      the fromAlias of the initial entity is 'a'
      * 
-     *      if count is set, the count of related entities will be saved in the property of the from-object defined by count
-     *      (example: 'count' => 'fooCount' will save the number of related entries in $fromObject->fooCount)
+     *      if aggregate is set, the result of the aggregate function (array-key) will be saved in the property of the from-object (array-value)
+     *      (example: array('count(*)' => 'fooCount', 'sum(score)' => 'fooScore') will save the number of related entries in $fromObject->fooCount and the sum $fromObject->fooSum)
+     *      when using aggregate on m:n relations, you should prefix columns in conditions and aggregate functions with 'b' ('conditions' => 'b.status = 1', 'aggregate' => array('sum(b.score)' => 'fooScore'))
      * 
      * @param array $relations the relations
      * @param array|string $conditions the where conditions
@@ -354,12 +356,14 @@ class Repository
      *          'conditions' => array|string additional where conditions to filter for
      *          'values' => array values for ?-placeholders in the conditions
      *          'order' => string the order of the related entries
-     *          'count' => false|string fetch only the number of related entries, not the entries themself
+     *          'aggregate' => false|array fetch only an aggregated value, not the entries themself
+     *                         if not false, must be an array('aggregationFunction' => 'targetProperty')
      * 
      *      the fromAlias of the initial entity is 'a'
      * 
-     *      if count is set, the count of related entities will be saved in the property of the from-object defined by count
-     *      (example: 'count' => 'fooCount' will save the number of related entries in $fromObject->fooCount)
+     *      if aggregate is set, the result of the aggregate function (array-key) will be saved in the property of the from-object (array-value)
+     *      (example: array('count(*)' => 'fooCount', 'sum(score)' => 'fooScore') will save the number of related entries in $fromObject->fooCount and the sum $fromObject->fooSum)
+     *      when using aggregate on m:n relations, you should prefix columns in conditions and aggregate functions with 'b' ('conditions' => 'b.status = 1', 'aggregate' => array('sum(b.score)' => 'fooScore'))
      * 
      * @param array $relations the relations
      * @param array|string $conditions the where conditions
@@ -426,32 +430,55 @@ class Repository
                 
             $repository = $relData[0]::getRepository($this->getDB());
             
-            
-            if (!empty($options['count'])) {
-                foreach ($entities[$rel[0]] as $fromEntity) {
-                    $fromEntity->countRelated($rel[1], $condition, $values, $options['count']);
-                }
-                continue;
-            }
-            
             if (isset($relData[3]) && $relData[3] !== true) {
+                $refValues = array();
                 foreach ($entities[$rel[0]] as $fromEntity) {
-                    array_push($values, $fromEntity->{static::getIdentifier()});
+                    array_push($refValues, $fromEntity->{$entityClasses[$rel[0]]::getIdentifier()});
                 }
-                $stmt = $this->getDB()->prepare('SELECT '.$data[1].' a, '.$data[2].' b FROM '.$data[3].' WHERE '.$data[1].' IN ('.implode(',', array_fill(0, count($entities['a']), '?')).')')
-                        ->execute($values);
-                $refTableIds = $stmt->fetchAll(PDO::FETCH_ASSOC);
-             
-                foreach ($refTableIds as $row) {
-                    array_push($values, $row['b']);
-                }
-                
-                array_push($condition, $relData[0]::getIdentifier().' IN ('.implode(',', array_fill(0, count($refTableIds), '?')).')');
-                
-                $entities[$rel[2]] = $repository->load($condition, $values, !empty($options['order']) ? $options['order'] : null);
-                
-                foreach ($refTableIds as $row) {
-                    $entities[$rel[0]][$row['a']]->add($rel[1], $entities[$rel[2]][$row['b']]);
+                    
+                if (!empty($options['aggregate'])) {
+                    foreach ($options['aggregate'] as $aggregateFunction => $aggregateTargetProperty) {
+                        $query = 'SELECT a.'.$relData[1].' identifier, '.$aggregateFunction.' aggregateValue FROM '.$relData[3].' a JOIN '.$relData[0]::getTableName().' b ON a.'.$relData[2].'=b.'.$relData[0]::getIdentifier().' WHERE a.'.$relData[1].' IN ('.implode(',', array_fill(0, count($entities[$rel[0]]), '?')).')';
+                        
+                        $where = array();
+                        foreach ((array) $conditions as $k => $v) {
+                            if (is_numeric($k)) {
+                                $where[] = ' '.$v;
+                            } else {
+                                $where[] = ' '.$k.'='.$this->getDB()->quote($v);
+                            }
+                        }
+                        if ($where) {
+                            $query .= ' '.implode(' AND ', $where);
+                        }
+                        $query .= ' GROUP BY a.'.$relData[1];
+                        $stmt = $this->getDB()->prepare($query)->execute(array_merge($refValues, $values));
+                        $aggregateResults = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                        
+                        foreach ($entities[$rel[0]] as $fromEntity) {
+                            foreach ($aggregateResults as $aggregateResult) {
+                                if ($fromEntity->{$entityClasses[$rel[0]]::getIdentifier()} == $aggregateResults['identifier']) {
+                                    $fromEntity->set($aggregateTargetProperty, $aggregateResults['aggregateValue']);
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    $stmt = $this->getDB()->prepare('SELECT '.$relData[1].' a, '.$relData[2].' b FROM '.$relData[3].' WHERE '.$relData[1].' IN ('.implode(',', array_fill(0, count($entities[$rel[0]]), '?')).')')
+                            ->execute($refValues);
+                    $refTableIds = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                    foreach ($refTableIds as $row) {
+                        array_push($values, $row['b']);
+                    }
+
+                    array_push($condition, $relData[0]::getIdentifier().' IN ('.implode(',', array_fill(0, count($refTableIds), '?')).')');
+
+                    $entities[$rel[2]] = $repository->load($condition, $values, !empty($options['order']) ? $options['order'] : null);
+
+                    foreach ($refTableIds as $row) {
+                        $entities[$rel[0]][$row['a']]->add($rel[1], $entities[$rel[2]][$row['b']]);
+                    }
                 }
                 
             } else {                
@@ -461,15 +488,43 @@ class Repository
                 
                 array_push($condition, $relData[2].' IN ('.implode(',', array_fill(0, count($entities[$rel[0]]), '?')).')');
 
-                $entities[$rel[2]] = $repository->load($condition, $values, !empty($options['order']) ? $options['order'] : null);
-                
-                foreach ($entities[$rel[0]] as $fromEntity) {
-                    foreach ($entities[$rel[2]] as $toEntity) {
-                        if ($fromEntity->{$relData[1]} == $toEntity->{$relData[2]}) {
-                            if (!empty($relData[3])) {
-                                $fromEntity->set($rel[1], $toEntity);
+                if (!empty($options['aggregate'])) {
+                    foreach ($options['aggregate'] as $aggregateFunction => $aggregateTargetProperty) {
+                        $query = 'SELECT '.$relData[2].' identifier, '.$aggregateFunction.' aggregateValue FROM '.$relData[0]::getTableName().' WHERE ';
+                        $where = array();
+                        foreach ((array) $conditions as $k => $v) {
+                            if (is_numeric($k)) {
+                                $where[] = ' '.$v;
                             } else {
-                                $fromEntity->add($rel[1], $toEntity);
+                                $where[] = ' '.$k.'='.$this->getDB()->quote($v);
+                            }
+                        }
+                        if ($where) {
+                            $query .= ' WHERE'.implode(' AND ', $where);
+                        }
+                        $query .= ' GROUP BY '.$relData[2];
+                        $stmt = $this->getDB()->prepare($query)->execute($values);
+                        $aggregateResults = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                        
+                        foreach ($entities[$rel[0]] as $fromEntity) {
+                            foreach ($aggregateResults as $aggregateResult) {
+                                if ($fromEntity->{$relData[1]} == $aggregateResults['identifier']) {
+                                    $fromEntity->set($aggregateTargetProperty, $aggregateResults['aggregateValue']);
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    $entities[$rel[2]] = $repository->load($condition, $values, !empty($options['order']) ? $options['order'] : null);
+
+                    foreach ($entities[$rel[0]] as $fromEntity) {
+                        foreach ($entities[$rel[2]] as $toEntity) {
+                            if ($fromEntity->{$relData[1]} == $toEntity->{$relData[2]}) {
+                                if (!empty($relData[3])) {
+                                    $fromEntity->set($rel[1], $toEntity);
+                                } else {
+                                    $fromEntity->add($rel[1], $toEntity);
+                                }
                             }
                         }
                     }
@@ -548,31 +603,34 @@ class Repository
      *      - performance may vary based on number of fetched relations
      *      - cross-table conditions (e.g. a.foo = b.bar)
      *      - option to select certain referenced tables
-     *      - no ORDER BY for related entities
+     *      - no ORDER BY for related entities, but one global order by clause
      *      - the prefix/alias must be used in any conditions
+     *      - group by support
      * 
      * $relations is an array of arrays as followed:
      *  array(fromAlias, relationProperty, toAlias, options = array())
      *      options is an array with the following optional keys:
-     *          'select' => true|false if the entites should be selected
+     *          'select' => true|false|string true to select/fetch the complete entity, false to not select the entity, string for custom select
      *          'conditions' => array|string additional where conditions to filter for
      *          'values' => array values for ?-placeholders in the conditions
-     *          'count' => false|string fetch only the number of related entries, not the entries themself
+     *          'on' => string additional conditions for on clause (this is appended after the default ON condition) example: toAlias.status = "published"
      * 
      *      the fromAlias of the initial entity is 'a'
      * 
-     *      if count is set, the count of related entities will be saved in the property of the from-object defined by count
-     *      (example: 'count' => 'fooCount' will save the number of related entries in $fromObject->fooCount)
+     *      if select is a string, any fetched value must be aliased with "ALIAS_PROPERTY" (b.some_column as b_status will be added as "status"-property to the entity with alias b)
+     *      you have to select at least the identifier of an related entity (toAlias.id as toAlias_id), otherwise the entity is not created
+     *      to fetch aggregated values for the relation, use something like "COUNT(toAlias.id) as fromAlias_relation_count" to add the number of related entities as the relation_count property (and don´t forget to use GroupBy)
      * 
      * @param array $relations the relations
      * @param array|string $conditions the where conditions
      * @param array $values values for ?-placeholders in the conditions
-     * @param string $order an order by clause (id ASC, foo DESC)
+     * @param string $order an order by clause (a.id ASC, b.foo DESC)
+     * @param string $groupBy an group by clause
      * @return mixed the first entity found or false
      */
-    public function loadOneWithRelationsAlt($relations = array(), $conditions = array(), $values = array(), $order = null)
+    public function loadOneWithRelationsAlt($relations = array(), $conditions = array(), $values = array(), $order = null, $groupBy = null)
     {
-        $results = $this->loadWithRelationsAlt($relations, $conditions, $values, $order, 1);
+        $results = $this->loadWithRelationsAlt($relations, $conditions, $values, $order, 1, null, $groupBy);
         return reset($results);
     }
     
@@ -582,31 +640,33 @@ class Repository
      *      - performance may vary based on number of fetched relations
      *      - cross-table conditions (e.g. a.foo = b.bar)
      *      - option to select certain referenced tables
-     *      - no ORDER BY for related entities
+     *      - no ORDER BY for related entities, but one global order by clause
      *      - the prefix/alias must be used in any conditions
+     *      - group by support
      * 
      * $relations is an array of arrays as followed:
      *  array(fromAlias, relationProperty, toAlias, options = array())
      *      options is an array with the following optional keys:
-     *          'select' => true|false if the entites should be selected
+     *          'select' => true|false|string true to select/fetch the complete entity, false to not select the entity, string for custom select
      *          'conditions' => array|string additional where conditions to filter for
      *          'values' => array values for ?-placeholders in the conditions
-     *          'count' => false|string fetch only the number of related entries, not the entries themself
+     *          'on' => string additional conditions for on clause (this is appended after the default ON condition) example: toAlias.status = "published"
      * 
      *      the fromAlias of the initial entity is 'a'
-     * 
-     *      if count is set, the count of related entities will be saved in the property of the from-object defined by count
-     *      (example: 'count' => 'fooCount' will save the number of related entries in $fromObject->fooCount)
+     *      if select is a string, any fetched value must be aliased with "ALIAS_PROPERTY" (b.some_column as b_status will be added as "status"-property to the entity with alias b)
+     *      you have to select at least the identifier of an related entity (toAlias.id as toAlias_id), otherwise the entity is not created
+     *      to fetch aggregated values for the relation, use something like "COUNT(toAlias.id) as fromAlias_relation_count" to add the number of related entities as the relation_count property (and don´t forget to use GroupBy)
      * 
      * @param array $relations the relations
      * @param array|string $conditions the where conditions
      * @param array $values values for ?-placeholders in the conditions
-     * @param string $order an order by clause (id ASC, foo DESC)
+     * @param string $order an order by clause (a.id ASC, b.foo DESC)
      * @param int $limit
      * @param int $offset
+     * @param string $groupBy an group by clause
      * @return array the resulting entities 
      */
-    public function loadWithRelationsAlt($relations = array(), $conditions = array(), $values = array(), $order = null, $limit = null, $offset = null)
+    public function loadWithRelationsAlt($relations = array(), $conditions = array(), $values = array(), $order = null, $limit = null, $offset = null, $groupBy = null)
     {
         $entityClasses = array();
         $entityIdentifiers = array();
@@ -648,9 +708,7 @@ class Repository
                 $relations[$k][4] = $entityClasses[$rel[2]]::getRelation($rel[1]);
                 
                 if (!empty($rel[3]['select'])) {
-                    $query .= ', '.implode(', ', $entityClasses[$rel[2]]::getColumns($rel[2]));
-                } elseif (!empty($rel[3]['count'])) {
-                    $query .= ', COUNT(DISTICT('.$rel[2].'.'.$entityClasses[$rel[2]]::getIdentifier().')) '.$rel[0].'_'.$rel[3]['count'];
+                    $query .= ', '.($rel[3]['select'] === true ? implode(', ', $entityClasses[$rel[2]]::getColumns($rel[2])) : $rel[3]['select']);
                 }
         }
         
@@ -662,11 +720,17 @@ class Repository
             if (!empty($rel[4][3]) && $rel[4][3] !== true) {
                 $needPreQuery = true;
                 $currentRelQuery .= ' LEFT JOIN '.$rel[4][3].' '.$rel[0].'_'.$rel[2].' ON '.$rel[0].'.'.$entityClasses[$rel[0]]::getIdentifier().' = '.$rel[0].'_'.$rel[2].'.'.$rel[4][1].' LEFT JOIN '.$entityClasses[$rel[2]]::getTableName().' '.$rel[2].' ON '.$rel[0].'_'.$rel[2].'.'.$rel[4][2].' = '.$entityClasses[$rel[2]]::getIdentifier();
+                if (!empty($rel[3]['on'])) {
+                    $currentRelQuery .= ' AND '.$rel[3]['on'];
+                }
             } else {
                 if (empty($rel[4][3])) {
                     $needPreQuery = true;
                 }
                 $currentRelQuery .= ' LEFT JOIN '.$entityClasses[$rel[2]]::getTableName().' '.$rel[2].' ON '.$rel[0].'.'.$rel[4][1].' = '.$rel[2].'.'.$rel[4][2];
+                if (!empty($rel[3]['on'])) {
+                    $currentRelQuery .= ' AND '.$rel[3]['on'];
+                }
             }
             if (!empty($rel[3]['conditions'])) {
                 $where = array();
@@ -699,7 +763,7 @@ class Repository
         }
         
 
-        if ($needPreQuery && ($limit || $offset)) {
+        if ($needPreQuery && empty($groupBy) && ($limit || $offset)) {
             $preQuery = 'SELECT a.'.$entityClasses['a']::getIdentifier().' FROM'.$entityClasses['a']::getTableName().' a ';
             
             if ($where) {
@@ -723,7 +787,11 @@ class Repository
         
         
         if ($order) {
-            $query .= ' ORDER BY a.'.$order.' ';
+            $query .= ' ORDER BY '.$order.' ';
+        }
+        
+        if ($groupBy) {
+            $query .= ' GROUP BY '.$groupBy.' ';
         }
         
         if (!$needPreQuery && ($limit || $offset)) {
