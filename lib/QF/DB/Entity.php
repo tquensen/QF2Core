@@ -230,13 +230,14 @@ abstract class Entity extends \QF\Entity
      *
      * @param string $relation the name of a relation
      * @param mixed $identifier a related model object, the identifier of a related model
-     * @param bool $loadRelated whether to load the related object (if identifier is not already loaded and assigned to this model)
+     * @param bool $load also load the linked related entity to this entity
+     * @param bool $rawUpdate perform a raw/direct database update instead of load and update the related entries separately
      */
-    public function linkRelated($relation, $identifier = null)
+    public function linkRelated($relation, $identifier = null, $load = true, $rawUpdate = false)
     {
         if (is_array($identifier)) {
             foreach ($identifier as $id) {
-                $this->linkRelated($relation, $id, $loadRelated);
+                $this->linkRelated($relation, $id, $load, $rawUpdate);
             }
             return true;
         }
@@ -257,8 +258,30 @@ abstract class Entity extends \QF\Entity
                 if (is_object($identifier)) {
                     $identifier->{$data[2]} = $this->getIdentifier();
                     $identifier->save();
+                    if ($load) {
+                        if (isset($data[3]) && $data[3] === true) {
+                            $this->$relation = $identifier;
+                        } else {
+                            $this->add($relation, $identifier);
+                        }
+                    }
                 } else {
-                    $this->getDB()->prepare('UPDATE '.$data[0]::getTableName().' SET '.$data[2].' = ? WHERE '.$data[0]::getIdentifier().' = ?')->execute(array($this->{static::getIdentifier()}, $identifier));
+                    if (!$rawUpdate || $load) {
+                        $related = $repository->load(array($data[0]::getIdentifier() => $identifier));
+                        if ($related) {
+                            $related->{$data[2]} = $this->getIdentifier();
+                            $related->save();
+                            if ($load) {
+                                if (isset($data[3]) && $data[3] === true) {
+                                    $this->$relation = $related;
+                                } else {
+                                    $this->add($relation, $related);
+                                }
+                            }
+                        }
+                    } else {
+                        $this->getDB()->prepare('UPDATE '.$data[0]::getTableName().' SET '.$data[2].' = ? WHERE '.$data[0]::getIdentifier().' = ?')->execute(array($this->{static::getIdentifier()}, $identifier));
+                    }
                 }
             } elseif ($data[2] == $data[0]::getIdentifier()) {
                 if (is_object($identifier)) {
@@ -266,8 +289,25 @@ abstract class Entity extends \QF\Entity
                         $identifier->save();
                     }
                     $this->{$data[1]} = $identifier->{$data[0]::getIdentifier()};
+                    if ($load) {
+                        if (isset($data[3]) && $data[3] === true) {
+                            $this->$relation = $identifier;
+                        } else {
+                            $this->add($relation, $identifier);
+                        }
+                    }
                 } else {
                     $this->{$data[1]} = $identifier;
+                    if ($load) {
+                        $related = $repository->load(array($data[0]::getIdentifier() => $identifier));
+                        if ($related) {
+                            if (isset($data[3]) && $data[3] === true) {
+                                $this->$relation = $related;
+                            } else {
+                                $this->add($relation, $related);
+                            }
+                        }
+                    }
                 }
                 $this->save();
             }
@@ -284,6 +324,9 @@ abstract class Entity extends \QF\Entity
                 $stmt->closeCursor();
                 if (!$result) {
                     $this->getDB()->prepare('INSERT INTO '.$data[3].' ('.$data[1].', '.$data[2].') VALUES (?,?)')->execute(array($this->{static::getIdentifier()}, $identifier->{$data[0]::getIdentifier()}));
+                    if ($load) {
+                        $this->add($relation, $related);
+                    }
                 }
             } else {
                 $stmt = $this->getDB()->prepare('SELECT id, '.$data[1].', '.$data[2].' FROM '.$data[3].' WHERE '.$data[1].' = ? AND '.$data[2].' = ?')->execute(array($this->{static::getIdentifier()}, $identifier));
@@ -291,6 +334,12 @@ abstract class Entity extends \QF\Entity
                 $stmt->closeCursor();
                 if (!$result) {
                     $this->getDB()->prepare('INSERT INTO '.$data[3].' ('.$data[1].', '.$data[2].') VALUES (?,?)')->execute(array($this->{static::getIdentifier()}, $identifier));
+                    if ($load) {
+                        $related = $repository->load(array($data[0]::getIdentifier() => $identifier));
+                        if ($related) {
+                            $this->add($relation, $related);
+                        }
+                    }
                 }
             }
         }
@@ -300,12 +349,14 @@ abstract class Entity extends \QF\Entity
      *
      * @param string $relation the name of a relation
      * @param mixed $identifier a related model object, the identifier of a related model or true to unlink all related models
+     * @param bool $delete also delete the related entities
+     * @param bool $rawDelete perform a raw/direc database delete instead of load and delete the related entries separately
      */
-    public function unlinkRelated($relation, $identifier = true, $delete = false)
+    public function unlinkRelated($relation, $identifier = true, $delete = false, $rawDelete = false)
     {
         if (is_array($identifier)) {
             foreach ($identifier as $id) {
-                $this->unlinkRelated($relation, $id);
+                $this->unlinkRelated($relation, $id, $delete, $rawDelete);
             }
             return true;
         }
@@ -320,26 +371,49 @@ abstract class Entity extends \QF\Entity
                     if ($delete) {
                         $identifier->delete();
                     } else {
-                        $identifier->{$info[2]} = null;
+                        $identifier->{$data[2]} = null;
                         $identifier->save();
                     }   
                 } elseif($identifier === true) {
                     if (!$this->{static::getIdentifier()}) {
                         return false;
                     }
-                    if ($delete) {
-                        $this->getDB()->prepare('DELETE FROM '.$data[0]::getTableName().' WHERE '.$data[2].' = ?')->execute(array($this->{static::getIdentifier()}));
+                    if (!$rawDelete) {
+                        foreach ($repository->load(array($data[2] => $this->{static::getIdentifier()})) as $related) {
+                            if ($delete) {
+                                $related->delete();
+                            } else {
+                                $related->{$data[2]} = null;
+                                $related->save();
+                            }
+                        }
                     } else {
-                        $this->getDB()->prepare('UPDATE '.$data[0]::getTableName().' SET '.$data[2].' = ? WHERE '.$data[2].' = ?')->execute(array(null, $this->{static::getIdentifier()}));
+                        if ($delete) {
+                            $this->getDB()->prepare('DELETE FROM '.$data[0]::getTableName().' WHERE '.$data[2].' = ?')->execute(array($this->{static::getIdentifier()}));
+                        } else {
+                            $this->getDB()->prepare('UPDATE '.$data[0]::getTableName().' SET '.$data[2].' = ? WHERE '.$data[2].' = ?')->execute(array(null, $this->{static::getIdentifier()}));
+                        }
                     }
                 } else {
                     if (!$this->{static::getIdentifier()}) {
                         return false;
                     }
-                    if ($delete) {
-                        $this->getDB()->prepare('DELETE FROM '.$data[0]::getTableName().' WHERE '.$data[0]::getIdentifier().' = ? AND '.$data[2].' = ?')->execute(array($identifier, $this->{static::getIdentifier()}));
+                    if (!$rawDelete) {
+                        $related = $repository->loadOne(array($data[0]::getIdentifier() => $identifier, $data[2] => $this->{static::getIdentifier()}));
+                        if ($related) {
+                            if ($delete) {
+                                $related->delete();
+                            } else {
+                                $related->{$data[2]} = null;
+                                $related->save();
+                            }
+                        }
                     } else {
-                        $this->getDB()->prepare('UPDATE '.$data[0]::getTableName().' SET '.$data[2].' = ? WHERE '.$data[0]::getIdentifier().' = ? AND '.$data[2].' = ?')->execute(array(null, $identifier, $this->{static::getIdentifier()}));
+                        if ($delete) {
+                            $this->getDB()->prepare('DELETE FROM '.$data[0]::getTableName().' WHERE '.$data[0]::getIdentifier().' = ? AND '.$data[2].' = ?')->execute(array($identifier, $this->{static::getIdentifier()}));
+                        } else {
+                            $this->getDB()->prepare('UPDATE '.$data[0]::getTableName().' SET '.$data[2].' = ? WHERE '.$data[0]::getIdentifier().' = ? AND '.$data[2].' = ?')->execute(array(null, $identifier, $this->{static::getIdentifier()}));
+                        }
                     }
                 }
             } elseif ($data[2] == $data[0]::getIdentifier()) {
@@ -350,7 +424,14 @@ abstract class Entity extends \QF\Entity
                     if (is_object($identifier)) {
                         $identifier->delete();
                     } elseif ($linkedIdentifier && ($identifier === true || $identifier == $linkedIdentifier)) {
-                        $this->getDB()->prepare('DELETE FROM '.$data[0]::getTableName().' WHERE '.$data[0]::getIdentifier().' = ?')->execute(array($linkedIdentifier));
+                        if (!$rawDelete) {
+                            $related = $repository->loadOne(array($data[0]::getIdentifier() => $linkedIdentifier));
+                            if ($related) {
+                                $related->delete();
+                            }
+                        } else {
+                            $this->getDB()->prepare('DELETE FROM '.$data[0]::getTableName().' WHERE '.$data[0]::getIdentifier().' = ?')->execute(array($linkedIdentifier));
+                        }
                     }
                 }
             }
@@ -362,7 +443,13 @@ abstract class Entity extends \QF\Entity
                 if ($delete) {
                     $stmt = $this->getDB()->prepare('SELECT '.$data[2].' FROM '.$data[3].' WHERE '.$data[1].' = ?')->execute(array($this->{static::getIdentifier()}));
                     $refTableIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
-                    $this->getDB()->prepare('DELETE FROM '.$data[0]::getTableName().' WHERE '.$data[0]::getIdentifier().' IN ('.implode(',', array_fill(0, count($refTableIds), '?')).')')->execute($refTableIds);
+                    if (!$rawDelete) {
+                        foreach($repository->load($data[0]::getIdentifier().' IN ('.implode(',', array_fill(0, count($refTableIds), '?')).')', $refTableIds) as $related) {
+                            $related->delete();
+                        } 
+                    } else {
+                        $this->getDB()->prepare('DELETE FROM '.$data[0]::getTableName().' WHERE '.$data[0]::getIdentifier().' IN ('.implode(',', array_fill(0, count($refTableIds), '?')).')')->execute($refTableIds);
+                    }
                 }
                 $this->getDB()->prepare('DELETE FROM '.$data[3].' WHERE '.$data[1].' = ?')->execute(array($this->{static::getIdentifier()}));
             } else {
@@ -370,7 +457,19 @@ abstract class Entity extends \QF\Entity
                     if (is_object($identifier)) {
                         $identifier->delete();
                     } else {
-                        $this->getDB()->prepare('DELETE FROM '.$data[0]::getTableName().' WHERE '.$data[0]::getIdentifier().' = ? LIMIT 1')->execute(array($identifier));
+                        $stmt = $this->getDB()->prepare('SELECT id, '.$data[1].', '.$data[2].' FROM '.$data[3].' WHERE '.$data[1].' = ? AND '.$data[2].' = ?')->execute(array($this->{static::getIdentifier()}, $identifier));
+                        $result = $stmt->fetch(PDO::FETCH_NUM);
+                        $stmt->closeCursor();
+                        if ($result) {
+                            if (!$rawDelete) {
+                                $related = $repository->loadOne(array($data[0]::getIdentifier() => $identifier));
+                                if ($related) {
+                                    $related->delete();
+                                }
+                            } else {
+                                $this->getDB()->prepare('DELETE FROM '.$data[0]::getTableName().' WHERE '.$data[0]::getIdentifier().' = ? LIMIT 1')->execute(array($identifier));
+                            }
+                        }
                     }
                 }
                 $this->getDB()->prepare('DELETE FROM '.$data[3].' WHERE '.$data[1].' = ? AND '.$data[2].' = ?')->execute(array($this->{static::getIdentifier()}, is_object($identifier) ? $identifier->{$data[0]::getIdentifier()} : $identifier));

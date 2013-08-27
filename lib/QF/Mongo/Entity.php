@@ -233,17 +233,18 @@ abstract class Entity extends \QF\Entity
      *
      * @param string $relation the relation name
      * @param Mongo_Model|mixed $related either a Mongo\Model object, a Mongo\Model->_id-value or an array with multiple Mongo\Models
+     * @param bool $load also load the linked related entity to this entity
      * @param mixed $save set to false to prevent a save() call, otherwise call save($save)
      * @return bool
      */
-    public function linkRelated($relation, $related, $save = null)
+    public function linkRelated($relation, $related, $load = true, $save = null)
     {
         if (!$relationInfo = static::getRelation($relation)) {
             throw new \Exception('Unknown relation "'.$relation.'" for model '.get_class($this));
         }
         if (is_array($related)) {
             foreach ($related as $rel) {
-                $this->linkRelated($relation, $rel, $save, $multiple);
+                $this->linkRelated($relation, $rel, $load, $save);
             }
             return true;
         }
@@ -281,6 +282,9 @@ abstract class Entity extends \QF\Entity
                 $this->{$relationInfo[1]} = $related->{$relationInfo[2]};
                 return $save !== false ? $this->save($save) : true;
             }
+            if ($load) {
+                $this->set($relation, $related);
+            }
         } else {
             if ($relationInfo[1] == '_id' && !$this->{$relationInfo[1]}) {
                 if (!static::isAutoId()) {
@@ -313,6 +317,9 @@ abstract class Entity extends \QF\Entity
                 } else {
                     $related->{$relationInfo[2]} = $this->{$relationInfo[1]};                    
                 }
+                if ($load) {
+                    $this->add($relation, $related);
+                }
                 return $save !== false ? $related->save($save) : true;
             } else {
                 if ($multiple) {
@@ -325,6 +332,9 @@ abstract class Entity extends \QF\Entity
                 } else {
                     $this->{$relationInfo[1]} = $related->{$relationInfo[2]};
                 }
+                if ($load) {
+                    $this->add($relation, $related);
+                }
                 return $save !== false ? $this->save($save) : true;
             }
         }
@@ -335,17 +345,18 @@ abstract class Entity extends \QF\Entity
      * @param string $relation the relation name
      * @param \Mongo\Entity|mixed $related true to unlink all objects or either a \Mongo\Entity object, a \Mongo\Entity->_id-value  or an array with multiple \Mongo\Entity
      * @param boolean $delete true to delete the related entry, false to only remove the relation (default false) 
+     * @param bool $rawDelete perform a raw/direct database delete instead of load and delete the related entries separately
      * @param mixed $save set to false to prevent a save() call, otherwise call save($save)
      * @return bool
      */
-    public function unlinkRelated($relation, $related = true, $delete = false, $save = null)
+    public function unlinkRelated($relation, $related = true, $delete = false, $rawDelete = false, $save = null)
     {
         if (!$relationInfo = static::getRelation($relation)) {
             throw new \Exception('Unknown relation "'.$relation.'" for model '.get_class($this));
         }
         if (is_array($related)) {
             foreach ($related as $rel) {
-                $this->unlinkRelated($relation, $rel, $delete, $save);
+                $this->unlinkRelated($relation, $rel, $delete, $rawDelete, $save);
             }
             return true;
         }
@@ -359,7 +370,7 @@ abstract class Entity extends \QF\Entity
                 }
                 
                 $query = array($relationInfo[2] => $this->{$relationInfo[1]});
-                $options = $save !== false && $save !== null ? array('w' => $save) : array();
+                
                 if ($related !== true) {
                     if (!is_object($related) || !($related instanceof Entity)) {
                         $query['_id'] = $related;
@@ -368,9 +379,17 @@ abstract class Entity extends \QF\Entity
                     }
                 }
                 if ($delete) {
-                    return $repository->getCollection()->remove($query, $options);
+                    if (!$rawDelete) {
+                        return $repository->removeBy($query, false, $safe);
+                    } else {
+                        return $repository->getCollection()->remove($query, $options);
+                    }
                 } else {
-                    return $repository->getCollection()->update($query, array('$set' => array($relationInfo[2] => null)), $options);
+                    if (!$rawDelete) {
+                        return $repository->updateBy(array($relationInfo[2] => null), $query, true, $safe);
+                    } else {
+                        return $repository->getCollection()->update($query, array('$set' => array($relationInfo[2] => null)), $options);
+                    }
                 }
             } else {
                 if ($related !== true) {
@@ -385,9 +404,15 @@ abstract class Entity extends \QF\Entity
                 if ($delete) {
                     $query = array($relationInfo[2] => $this->{$relationInfo[1]});
                     $options = $save !== false && $save !== null ? array('w' => $save) : array();
-                    if (!$repository->getCollection()->remove($query, $options)) {
-                        return false;
-                    }    
+                    if (!$rawDelete) {
+                        if (!$repository->removeBy($query, true, $safe)) {
+                            return false;
+                        } 
+                    } else {
+                        if (!$repository->getCollection()->remove($query, $options)) {
+                            return false;
+                        }    
+                    }
                 }
                 $this->{$relationInfo[1]} = null;
                 return $save !== false ? $this->save($save) : true;
@@ -401,11 +426,10 @@ abstract class Entity extends \QF\Entity
                     if ($delete) {
                         $repository = $relationInfo[0]::getRepository($this->getDB());
                         
-
                         if ($multiple) {
-                            $status = (bool) $repository->removeBy(array($relationInfo[2] => array('$in' => $this->{$relationInfo[1]})), false, $save);
+                            $status = (bool) $repository->removeBy(array($relationInfo[2] => array('$in' => $this->{$relationInfo[1]})), false, $save, $rawDelete);
                         } else {
-                            $status = (bool) $repository->removeBy(array($relationInfo[2] => $this->{$relationInfo[1]}), false, $save);
+                            $status = (bool) $repository->removeBy(array($relationInfo[2] => $this->{$relationInfo[1]}), false, $save, $rawDelete);
                         }
                         
                         if (!$status) {
@@ -416,22 +440,23 @@ abstract class Entity extends \QF\Entity
                     return $save !== false ? $this->save($save) : true;
                 } else {
                     $repository = $relationInfo[0]::getRepository($this->getDB());
-                    $related = $repository->find(array($relationInfo[2] => $this->{$relationInfo[1]}));
-                    foreach ($related as $rel) {
-                        if ($multiple) {
+                    if (!$multiple) {
+                        $status = (bool) $repository->removeBy(array($relationInfo[2] => $this->{$relationInfo[1]}), false, $save, $rawDelete);
+                    } else {
+                        $related = $repository->find(array($relationInfo[2] => $this->{$relationInfo[1]}));
+                        foreach ($related as $rel) {
                             $rels = $related->{$relationInfo[2]};
                             if ($k = array_search($this->{$relationInfo[1]}, $rels)) {
                                 unset($rels[$k]);
                                 $rels = array_values($rels);
                             }
                             $rel->{$relationInfo[2]} = $rels;
-                        } else {
-                            $rel->clear($relationInfo[2]);
-                        }
-                        if ($delete && !$rel->{$relationInfo[2]} && $save !== false) {
-                            $rel->remove($save);
-                        } elseif ($save !== false) {
-                            $rel->save($save);
+                            
+                            if ($delete && !$rel->{$relationInfo[2]} && $save !== false) {
+                                $rel->delete($save);
+                            } elseif ($save !== false) {
+                                $rel->save($save);
+                            }
                         }
                     }
                 }
@@ -461,7 +486,7 @@ abstract class Entity extends \QF\Entity
                         return false;
                     }
                     if ($delete && !$related->{$relationInfo[2]} && $save !== false) {
-                        $related->remove($save);
+                        $related->delete($save);
                     } elseif ($save !== false) {
                         return $related->save($save);
                     } else {
@@ -481,7 +506,7 @@ abstract class Entity extends \QF\Entity
                         return false;
                     }
                     if ($delete && $save !== false) {
-                        $related->remove($save);
+                        $related->delete($save);
                     } 
                     return $save !== false ? $this->save($save) : true;
                 }
