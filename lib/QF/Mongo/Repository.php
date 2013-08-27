@@ -437,9 +437,41 @@ class Repository
     
     /**
      *
+     * @param array $update if raw = true: the update query. use array('$set' => array('key' => 'value'), '$unset' => array('key' => 1)) advanced dot-syntax is supproted for raw updates
+     *                      if raw = false: array of key => value pairs to update (or key => null to unset)
+     * @param array $query The fields for which to filter.
+     * @param bool $multi update multiple documents (default = false)
+     * @param bool|integer|string $w set to null to use connection default value / @see http://php.net/manual/en/mongo.writeconcerns.php
+     * @param bool $raw true to remove the entries directly, false (default) to call remove() on each model 
+     * @return bool if $raw is true, returns the status of the query. If $raw is false, it returns always true
+     */
+    public function updateBy($update, $query = array(), $multi = false, $w = null, $raw = false)
+    {
+        if ($raw) {
+            $options = array();
+            if ($multi) {
+                $options['multi'] = true;
+            }
+            if ($w !== null) {
+                $options['w'] = $w;
+            }
+            return $this->getCollection()->update($query, $update, $options);
+        } else {
+            foreach($this->find($query, array(), $multi ? null : 1, null) as $entity) {
+                foreach ($update as $k => $v) {
+                    $entity->$k = $v;
+                }
+                $entity->save($w);
+            } 
+            return true;
+        }
+    }
+    
+    /**
+     *
      * @param array $query The fields for which to filter.
      * @param bool $justOne Remove at most one record matching this criteria.
-     * @param bool|integer|string $w set to null to use conenction default value / @see http://php.net/manual/en/mongo.writeconcerns.php
+     * @param bool|integer|string $w set to null to use connection default value / @see http://php.net/manual/en/mongo.writeconcerns.php
      * @param bool $raw true to remove the entries directly, false (default) to call remove() on each model 
      * @return bool if $raw is true, returns the status of the query. If $raw is false, it returns always true
      */
@@ -453,7 +485,7 @@ class Repository
             if ($w !== null) {
                 $options['w'] = $w;
             }
-            return $this->getCollection()->remove($query);
+            return $this->getCollection()->remove($query, $options);
         } else {
             foreach($this->find($query, array(), $justOne ? 1 : null, null) as $entity) {
                 $entity->delete($w);

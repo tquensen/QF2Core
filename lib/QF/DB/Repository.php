@@ -164,6 +164,63 @@ class Repository
 
 	}
     
+    /**
+     * 
+     * @param array|string $set array of column => value pairs to update or (only for raw=true) update expression(s) as string or numeric array (e.g. foo = foo + 2)
+     * @param array|string $conditions the where conditions
+     * @param array $values values for ?-placeholders in the conditions
+     * @param bool $raw do a raw (direct) update in the db or load each entity first and perform a separate update/save
+     * @param bool $cleanRefTable remove unused entries in m:n ref tables
+     * @return boolean
+     */
+    public function updateBy($set, $conditions, $values = array(), $raw = false, $cleanRefTable = false)
+	{
+        if ($raw) {
+            $entityClass = $this->getEntityClass();
+            $query = 'UPDATE '.$entityClass::getTableName();
+
+            $set = array();
+            foreach ((array) $set as $k => $v) {
+                if (is_numeric($k)) {
+                    $set[] = ' '.$v;
+                } else {
+                    $set[] = ' '.$k.'='.$this->getDB()->quote($v);
+                }
+            }
+            if ($set) {
+                $query .= ' SET'.implode(' , ', $set);
+            }
+            
+            $where = array();
+            foreach ((array) $conditions as $k => $v) {
+                if (is_numeric($k)) {
+                    $where[] = ' '.$v;
+                } else {
+                    $where[] = ' '.$k.'='.$this->getDB()->quote($v);
+                }
+            }
+            if ($where) {
+                $query .= ' WHERE'.implode(' AND ', $where);
+            }
+            $stmt = $this->getDB()->prepare($query);
+            $result = $stmt->execute($values);
+
+            if ($cleanRefTable) {
+                $this->cleanRefTables();
+            }
+
+            return $result;
+        } else {
+            foreach($this->load($conditions, $values) as $entity) {
+                foreach ($set as $k => $v) {
+                    $entity->$k = $v;
+                }
+                $entity->save();
+            } 
+            return true;
+        }
+	}
+    
     public function remove($entity)
 	{
         try
@@ -207,7 +264,15 @@ class Repository
 		return $result;
 	}
     
-    public function removeBy($conditions, $values, $raw = false, $cleanRefTable = false)
+    /**
+     * 
+     * @param array|string $conditions the where conditions
+     * @param array $values values for ?-placeholders in the conditions
+     * @param bool $raw do a raw (direct) update in the db or load each entity first and perform a separate 
+     * @param bool $cleanRefTable remove unused entries in m:n ref tables
+     * @return boolean
+     */
+    public function removeBy($conditions, $values = array(), $raw = false, $cleanRefTable = false)
 	{
         if ($raw) {
             $entityClass = $this->getEntityClass();
