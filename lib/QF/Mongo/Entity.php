@@ -242,20 +242,24 @@ abstract class Entity extends \QF\Entity
         if (!$relationInfo = static::getRelation($relation)) {
             throw new \Exception('Unknown relation "'.$relation.'" for model '.get_class($this));
         }
-        if (is_array($related)) {
-            foreach ($related as $rel) {
-                $this->linkRelated($relation, $rel, $load, $save);
-            }
-            return true;
-        }
-        if (!is_object($related) || !($related instanceof Entity)) {
-            $repository = $relationInfo[0]::getRepository($this->getDB());
-            $related = $repository->findOne($related);
-            if (!$related) {
-                throw new \InvalidArgumentException('Could not find valid '.$relationInfo[0]);
-            }
-        }
+//        if (is_array($related)) {
+//            foreach ($related as $rel) {
+//                $this->linkRelated($relation, $rel, $load, $save);
+//            }
+//            return true;
+//        }
+        
         if (!empty($relationInfo[3])) {
+            if (is_array($related)) {
+                $related = array_pop($related);
+            }
+            if (!is_object($related) || !($related instanceof Entity)) {
+                $repository = $relationInfo[0]::getRepository($this->getDB());
+                $related = $repository->findOne($related);
+                if (!$related) {
+                    throw new \InvalidArgumentException('Could not find valid '.$relationInfo[0]);
+                }
+            }
             if ($relationInfo[1] == '_id') {
                 if (!$this->{$relationInfo[1]}) {
                     if (!static::isAutoId()) {
@@ -284,6 +288,79 @@ abstract class Entity extends \QF\Entity
             }
             if ($load) {
                 $this->set($relation, $related);
+            }
+        } elseif (is_array($related)) {
+            if ($relationInfo[1] == '_id' && !$this->{$relationInfo[1]}) {
+                if (!static::isAutoId()) {
+                    throw new \Exception('Couldnt not link realted '.$relationInfo[0].' - '.$relationInfo[1].' not set!');
+                }
+                $this->{$relationInfo[1]} = new \MongoId();
+                if ($save !== false) {
+                    $this->save($save);
+                }
+            }
+            $relIDs = array();
+            foreach ($related as $rel) {
+                if (!is_object($rel) || !($related instanceof Entity)) {
+                    $relIDs = is_object($rel) ? $rel : new \MongoId($rel);
+                } else {
+                    if (!$relationInfo[0]::isAutoId()) {
+                        throw new \Exception('Couldnt not link realted '.$relationInfo[0].' - '.$relationInfo[2].' not set!');
+                    }
+                    $rel->{$relationInfo[2]} = new \MongoId();
+                    if ($save !== false) {
+                        $rel->save($save);
+                    }
+                }
+                $relIDs[] = $rel;
+            }
+            if (isset($relationInfo[3]) && $relationInfo[3] === false) {
+                $multiple = true;
+            }
+            if ($relationInfo[1] == '_id') {
+                foreach ($relationInfo[0]::getRepository($this->getDB())->find(array('_id' => array('$in' => (array) $relIDs))) as $rel) {
+                    if ($multiple) {
+                        $rels = (array) $rel->{$relationInfo[2]};
+                        if (!in_array($this->{$relationInfo[1]}, $rels)) {
+                            $rels[] = $this->{$relationInfo[1]};
+                            $rels = array_values($rels);
+                            $rel->{$relationInfo[2]} = $rels;
+                        }
+                    } else {
+                        $rel->{$relationInfo[2]} = $this->{$relationInfo[1]};
+                    }
+                    if ($save !== false) {
+                        $rel->save($save);
+                    }
+                    if ($load) {
+                        $this->add($relation, $rel);
+                    }
+                }
+                return true;   
+            } else {
+                if ($multiple) {
+                    $rels = (array) $this->{$relationInfo[1]};
+                    foreach ($relIDs as $rel) {
+                        if (!in_array($rel, $rels)) {
+                            $rels[] = $rel;
+                        }
+                    }
+                    $rels = array_values($rels);
+                    $this->{$relationInfo[1]} = $rels;
+                    if ($load) {
+                        foreach ($relationInfo[0]::getRepository($this->getDB())->find(array($relationInfo[2] => array('$in' => (array) $relIDs))) as $rel) {
+                            $this->add($relation, $rel);
+                        }
+                    }
+                } else {
+                    $lastRel = array_pop($relIDs);
+                    $this->{$relationInfo[1]} = $lastRel;
+                    if ($load) {
+                        $this->add($relation, $relationInfo[0]::getRepository($this->getDB())->findOne($lastRel));
+                    }
+                }
+                
+                return $save !== false ? $this->save($save) : true;
             }
         } else {
             if ($relationInfo[1] == '_id' && !$this->{$relationInfo[1]}) {
@@ -372,26 +449,49 @@ abstract class Entity extends \QF\Entity
                 $query = array($relationInfo[2] => $this->{$relationInfo[1]});
                 
                 if ($related !== true) {
-                    if (!is_object($related) || !($related instanceof Entity)) {
-                        $query['_id'] = $related;
+                    if (is_array($related)) {
+                        $relIDs = array();
+                        foreach ($related as $rel) {
+                            if (!is_object($rel) || !($rel instanceof Entity)) {
+                                $relIDs[] = is_object($rel) ? $rel : new \MongoId($rel);
+                            } else {
+                                $relIDs[] = $rel->_id;
+                            }
+                        }
+                        $query['_id'] = array('$in' => $relIDs);
                     } else {
-                        $query['_id'] = $related->_id;
+                        if (!is_object($related) || !($related instanceof Entity)) {
+                            $query['_id'] = is_object($related) ? $related : new \MongoId($related);
+                        } else {
+                            $query['_id'] = $related->_id;
+                        }
                     }
                 }
                 if ($delete) {
                     if (!$rawDelete) {
-                        return $repository->removeBy($query, false, $safe);
+                        return $repository->removeBy($query, false, $save);
                     } else {
                         return $repository->getCollection()->remove($query, $options);
                     }
                 } else {
                     if (!$rawDelete) {
-                        return $repository->updateBy(array($relationInfo[2] => null), $query, true, $safe);
+                        return $repository->updateBy(array($relationInfo[2] => null), $query, true, $save);
                     } else {
                         return $repository->getCollection()->update($query, array('$set' => array($relationInfo[2] => null)), $options);
                     }
                 }
             } else {
+                if (is_array($related)) {
+                    foreach ($related as $rel) {
+                        if (is_object($rel) && $rel instanceof Entity) {
+                            $rel = $rel->_id;
+                        }
+                        if ($this->{$relationInfo[1]} == $rel) {
+                            $related = $rel;
+                            break;
+                        }
+                    }
+                }
                 if ($related !== true) {
                     if (is_object($related) && $related instanceof Entity) {
                         $related = $related->_id;
@@ -440,24 +540,104 @@ abstract class Entity extends \QF\Entity
                     return $save !== false ? $this->save($save) : true;
                 } else {
                     $repository = $relationInfo[0]::getRepository($this->getDB());
-                    if (!$multiple) {
+                    if (!$multiple || ($rawDelete && $delete)) {
                         $status = (bool) $repository->removeBy(array($relationInfo[2] => $this->{$relationInfo[1]}), false, $save, $rawDelete);
                     } else {
-                        $related = $repository->find(array($relationInfo[2] => $this->{$relationInfo[1]}));
-                        foreach ($related as $rel) {
-                            $rels = $related->{$relationInfo[2]};
-                            if ($k = array_search($this->{$relationInfo[1]}, $rels)) {
+                        if ($rawDelete) {
+                            $repository->updateBy(array($relationInfo[2] => $this->{$relationInfo[1]}), array('$unset' => array($relationInfo[2].'.$')), true, $save, $rawDelete);
+                        } else {
+                            $related = $repository->find(array($relationInfo[2] => $this->{$relationInfo[1]}));
+                            foreach ($related as $rel) {
+                                $rels = $related->{$relationInfo[2]};
+                                if ($k = array_search($this->{$relationInfo[1]}, $rels)) {
+                                    unset($rels[$k]);
+                                    $rels = array_values($rels);
+                                }
+                                $rel->{$relationInfo[2]} = $rels;
+
+                                if ($delete && !$rel->{$relationInfo[2]} && $save !== false) {
+                                    $rel->delete($save);
+                                } elseif ($save !== false) {
+                                    $rel->save($save);
+                                }
+                            }
+                        }
+                    }
+                }
+                return true;
+            } elseif (is_array($related)) {
+                if ($relationInfo[2] == '_id') {   
+                    $relIDs = array();
+                    foreach ($related as $rel) {
+                        if (!is_object($rel) || !($rel instanceof Entity)) {
+                            $relIDs[] = is_object($rel) ? $rel : new \MongoId($rel);
+                        } else {
+                            $relIDs[] = $rel->_id;
+                        }
+                    }
+                    if ($delete) {
+                        $repository = $relationInfo[0]::getRepository($this->getDB());
+                        
+                        if ($multiple) {
+                            $rels = $this->{$relationInfo[1]};
+                            foreach ($relIDs as $k => $relID) {
+                                if (!in_array($relID, $rels)) {
+                                    unset($relIDs[$k]);
+                                }
+                            }
+                            $relIDs = array_values($relIDs);
+                            $status = (bool) $repository->removeBy(array($relationInfo[2] => array('$in' => $relIDs)), false, $save, $rawDelete);
+                        } else {
+                            if (!in_array($this->{$relationInfo[1]}, $relIDs)) {
+                                return false;
+                            }
+                            $status = (bool) $repository->removeBy(array($relationInfo[2] => $this->{$relationInfo[1]}), false, $save, $rawDelete);
+                        }
+                        
+                        if (!$status) {
+                            return false;
+                        }                       
+                    }
+                    if ($multiple) {
+                        $rels = $this->{$relationInfo[1]};
+                        foreach ($relIDs as $relID) {
+                            if ($k = array_search($relID, $rels)) {
                                 unset($rels[$k]);
                                 $rels = array_values($rels);
                             }
-                            $rel->{$relationInfo[2]} = $rels;
-                            
-                            if ($delete && !$rel->{$relationInfo[2]} && $save !== false) {
-                                $rel->delete($save);
-                            } elseif ($save !== false) {
-                                $rel->save($save);
+                        }
+                        $this->{$relationInfo[1]} = $rels;
+                    } else {
+                        if (in_array($this->{$relationInfo[1]}, $relIDs)) {
+                            $this->clear($relationInfo[1]);
+                        }
+                    }
+                    return $save !== false ? $this->save($save) : true;
+                } else {
+                    $repository = $relationInfo[0]::getRepository($this->getDB());
+                    if (!$multiple) {
+                        $status = (bool) $repository->removeBy(array('_id' => array('$in' => $relIDs), $relationInfo[2] => $this->{$relationInfo[1]}), false, $save, $rawDelete);
+                    } else {
+                        if ($rawDelete && $delete) {
+                            $repository->removeBy(array('_id' => array('$in' => $relIDs), $relationInfo[2] => $this->{$relationInfo[1]}), false, $safe === false ? null : $save, true);
+                        } else {
+                            $related = $repository->find(array('_id' => array('$in' => $relIDs), $relationInfo[2] => $this->{$relationInfo[1]}));
+                            foreach ($related as $rel) {
+                                $rels = $related->{$relationInfo[2]};
+                                if ($k = array_search($this->{$relationInfo[1]}, $rels)) {
+                                    unset($rels[$k]);
+                                    $rels = array_values($rels);
+                                }
+                                $rel->{$relationInfo[2]} = $rels;
+
+                                if ($delete && !$rel->{$relationInfo[2]} && $save !== false) {
+                                    $rel->delete($save);
+                                } elseif ($save !== false) {
+                                    $rel->save($save);
+                                }
                             }
                         }
+                        
                     }
                 }
                 return true;
