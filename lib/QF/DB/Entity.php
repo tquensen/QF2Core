@@ -152,7 +152,7 @@ abstract class Entity extends \QF\Entity
         if (isset($data[3]) && $data[3] !== true) {
 
             $repository = $data[0]::getRepository($this->getDB());
-            $stmt = $this->getDB()->prepare('SELECT '.$data[2].' FROM '.$data[3].' WHERE '.$data[1].'= ?')->execute(array($this->{static::getIdentifier()}));
+            $stmt = $this->getDB()->prepare('SELECT '.$data[2].' FROM '.$data[3].' WHERE '.$data[1].'= ?')->execute(array($this->get(static::getIdentifier())));
             $refTableIds = $stmt->fetchAll(\PDO::FETCH_COLUMN);
             
             $values = array_merge($refTableIds, (array) $values);
@@ -161,7 +161,7 @@ abstract class Entity extends \QF\Entity
             $entries = $repository->load($condition, $values, $order, $limit, $offset);
         } else {
             $values = (array) $values;
-            array_unshift($values, $this->{$data[1]});
+            array_unshift($values, $this->get($data[1]));
             $condition = (array) $condition;
             array_unshift($condition, $data[2].' = ?');
             $repository = $data[0]::getRepository($this->getDB());
@@ -170,7 +170,7 @@ abstract class Entity extends \QF\Entity
 
         if (isset($data[3]) && $data[3] === true) {
             $entries = reset($entries);
-            $this->$relation = $entries;
+            $this->set($relation, $entries);
         } else {
             foreach ($entries as $entry) {
                 $this->add($relation, $entry);
@@ -199,11 +199,11 @@ abstract class Entity extends \QF\Entity
 
         if (isset($data[3]) && $data[3] !== true) {
             if (empty($condition) && empty($values)) {
-                $stmt = $this->getDB()->prepare('SELECT count(a.'.$data[1].') FROM '.$data[3].' a LEFT JOIN '.$data[0]::getTableName().' b WHERE a.'.$data[1].' = ? AND b.'.$data[0]::getIdentifier().' IS NOT NULL')->execute(array($this->{static::getIdentifier()}));
+                $stmt = $this->getDB()->prepare('SELECT count(a.'.$data[1].') FROM '.$data[3].' a LEFT JOIN '.$data[0]::getTableName().' b WHERE a.'.$data[1].' = ? AND b.'.$data[0]::getIdentifier().' IS NOT NULL')->execute(array($this->get(static::getIdentifier())));
                 $return = $stmt->fetchColumn();
             } else {
                 $repository = $data[0]::getRepository($this->getDB());
-                $stmt = $this->getDB()->prepare('SELECT '.$data[2].' FROM '.$data[3].' WHERE '.$data[1].'= ?')->execute(array($this->{static::getIdentifier()}));
+                $stmt = $this->getDB()->prepare('SELECT '.$data[2].' FROM '.$data[3].' WHERE '.$data[1].'= ?')->execute(array($this->get(static::getIdentifier())));
                 $refTableIds = $stmt->fetchAll(\PDO::FETCH_COLUMN);
 
                 $values = array_merge($refTableIds, (array) $values);
@@ -213,7 +213,7 @@ abstract class Entity extends \QF\Entity
             }
         } else {
             $values = (array) $values;
-            array_unshift($values, $this->{$data[1]});
+            array_unshift($values, $this->get($data[1]));
             $condition = (array) $condition;
             array_unshift($condition, $data[2].' = ?');
             $repository = $data[0]::getRepository($this->getDB());
@@ -221,7 +221,7 @@ abstract class Entity extends \QF\Entity
         }
         
         if ($saveAs) {
-            $this->$saveAs = $return;
+            $this->set($saveAs, $return);
         }
         return $return;
     }
@@ -252,15 +252,15 @@ abstract class Entity extends \QF\Entity
         $repository = $data[0]::getRepository($this->getDB());
         if (!isset($data[3]) || $data[3] === true) {
             if ($data[1] == static::getIdentifier()) {
-                if (!$this->{static::getIdentifier()}) {
+                if (!$this->has(static::getIdentifier())) {
                     $this->save();
                 }
                 if (is_object($identifier)) {
-                    $identifier->{$data[2]} = $this->getIdentifier();
+                    $identifier->set($data[2], $this->get(static::getIdentifier()));
                     $identifier->save();
                     if ($load) {
                         if (isset($data[3]) && $data[3] === true) {
-                            $this->$relation = $identifier;
+                            $this->set($relation, $identifier);
                         } else {
                             $this->add($relation, $identifier);
                         }
@@ -268,12 +268,12 @@ abstract class Entity extends \QF\Entity
                 } elseif (is_array($identifier)) {
                     $idList = array();
                     foreach ($identifer as $id) {
-                        $idList[] = is_object($id) ? $id->{$data[0]::getIdentifier()} : $id;
+                        $idList[] = is_object($id) ? $id->get($data[0]::getIdentifier()) : $id;
                     }
                     if (!$rawUpdate || $load) {
                         $relateds = $repository->load(array($data[0]::getIdentifier() . ' IN ('.implode(',', array_fill(0, count($idList), '?')).')'), $idList);
                         foreach ($relateds as $related) {
-                            $related->{$data[2]} = $this->getIdentifier();
+                            $related->set($data[2], $this->get(static::getIdentifier()));
                             $related->save();
                             if ($load) {
                                 if (isset($data[3]) && $data[3] === true) {
@@ -284,24 +284,24 @@ abstract class Entity extends \QF\Entity
                             }
                         }
                     } else {
-                        $this->getDB()->prepare('UPDATE '.$data[0]::getTableName().' SET '.$data[2].' = ? WHERE '.$data[0]::getIdentifier().' IN ('.implode(',', array_fill(0, count($idList), '?')).')')->execute(array_merge(array($this->{static::getIdentifier()}), $idList));
+                        $this->getDB()->prepare('UPDATE '.$data[0]::getTableName().' SET '.$data[2].' = ? WHERE '.$data[0]::getIdentifier().' IN ('.implode(',', array_fill(0, count($idList), '?')).')')->execute(array_merge(array($this->get(static::getIdentifier())), $idList));
                     }
                 } else {
                     if (!$rawUpdate || $load) {
                         $related = $repository->load(array($data[0]::getIdentifier() => $identifier));
                         if ($related) {
-                            $related->{$data[2]} = $this->getIdentifier();
+                            $related->set($data[2], $this->get(static::getIdentifier()));
                             $related->save();
                             if ($load) {
                                 if (isset($data[3]) && $data[3] === true) {
-                                    $this->$relation = $related;
+                                    $this->set($relation, $related);
                                 } else {
                                     $this->add($relation, $related);
                                 }
                             }
                         }
                     } else {
-                        $this->getDB()->prepare('UPDATE '.$data[0]::getTableName().' SET '.$data[2].' = ? WHERE '.$data[0]::getIdentifier().' = ?')->execute(array($this->{static::getIdentifier()}, $identifier));
+                        $this->getDB()->prepare('UPDATE '.$data[0]::getTableName().' SET '.$data[2].' = ? WHERE '.$data[0]::getIdentifier().' = ?')->execute(array($this->get(static::getIdentifier()), $identifier));
                     }
                 }
             } elseif ($data[2] == $data[0]::getIdentifier()) {
@@ -309,25 +309,25 @@ abstract class Entity extends \QF\Entity
                     $identifier = array_pop($identifier);
                 }
                 if (is_object($identifier)) {
-                    if (!$identifier->{$data[0]::getIdentifier()}) {
+                    if (!$identifier->has($data[0]::getIdentifier())) {
                         $identifier->save();
                     }
-                    $this->{$data[1]} = $identifier->{$data[0]::getIdentifier()};
+                    $this->set($data[1], $identifier->get($data[0]::getIdentifier()));
                     if ($load) {
                         if (isset($data[3]) && $data[3] === true) {
-                            $this->$relation = $identifier;
+                            $this->set($relation, $identifier);
                         } else {
                             $this->add($relation, $identifier);
                         }
                     }
                 } else {
                     
-                    $this->{$data[1]} = $identifier;
+                    $this->set($data[1], $identifier);
                     if ($load) {
                         $related = $repository->load(array($data[0]::getIdentifier() => $identifier));
                         if ($related) {
                             if (isset($data[3]) && $data[3] === true) {
-                                $this->$relation = $related;
+                                $this->set($relation, $related);
                             } else {
                                 $this->add($relation, $related);
                             }
@@ -338,17 +338,17 @@ abstract class Entity extends \QF\Entity
             }
         } else {
             if (is_object($identifier)) {
-                if (!$this->{static::getIdentifier()}) {
+                if (!$this->has(static::getIdentifier())) {
                     $this->save();
                 }
-                if (!$identifier->{$data[0]::getIdentifier()}) {
+                if (!$identifier->has($data[0]::getIdentifier())) {
                     $identifier->save();
                 }
-                $stmt = $this->getDB()->prepare('SELECT id, '.$data[1].', '.$data[2].' FROM '.$data[3].' WHERE '.$data[1].' = ? AND '.$data[2].' = ?')->execute(array($this->{static::getIdentifier()}, $identifier->{$data[0]::getIdentifier()}));
+                $stmt = $this->getDB()->prepare('SELECT id, '.$data[1].', '.$data[2].' FROM '.$data[3].' WHERE '.$data[1].' = ? AND '.$data[2].' = ?')->execute(array($this->get(static::getIdentifier()), $identifier->get($data[0]::getIdentifier())));
                 $result = $stmt->fetch(\PDO::FETCH_NUM);
                 $stmt->closeCursor();
                 if (!$result) {
-                    $this->getDB()->prepare('INSERT INTO '.$data[3].' ('.$data[1].', '.$data[2].') VALUES (?,?)')->execute(array($this->{static::getIdentifier()}, $identifier->{$data[0]::getIdentifier()}));
+                    $this->getDB()->prepare('INSERT INTO '.$data[3].' ('.$data[1].', '.$data[2].') VALUES (?,?)')->execute(array($this->get(static::getIdentifier()), $identifier->get($data[0]::getIdentifier())));
                     if ($load) {
                         $this->add($relation, $related);
                     }
@@ -356,9 +356,9 @@ abstract class Entity extends \QF\Entity
             } else {
                 $idList = array();
                 foreach ((array) $identifer as $id) {
-                    $idList[] = is_object($id) ? $id->{$data[0]::getIdentifier()} : $id;
+                    $idList[] = is_object($id) ? $id->get($data[0]::getIdentifier()) : $id;
                 }
-                $stmt = $this->getDB()->prepare('SELECT '.$data[2].' FROM '.$data[3].' WHERE '.$data[1].' = ? AND '.$data[2].' IN ('.implode(',', array_fill(0, count($idList), '?')).')')->execute(array_merge(array($this->{static::getIdentifier()}), $idList));
+                $stmt = $this->getDB()->prepare('SELECT '.$data[2].' FROM '.$data[3].' WHERE '.$data[1].' = ? AND '.$data[2].' IN ('.implode(',', array_fill(0, count($idList), '?')).')')->execute(array_merge(array($this->get(static::getIdentifier())), $idList));
                 $result = $stmt->fetchAll(\PDO::FETCH_COLUMN);
                 $stmt->closeCursor();
                 $realIdList = array();
@@ -372,7 +372,7 @@ abstract class Entity extends \QF\Entity
                     $values = array();
                     foreach ($realIdList as $id) {
                         $condition[] = '(?,?)';
-                        $values[] = $this->{static::getIdentifier()};
+                        $values[] = $this->get(static::getIdentifier());
                         $values[] = $id;
                     }
                     $this->getDB()->prepare('INSERT INTO '.$data[3].' ('.$data[1].', '.$data[2].') VALUES '.  explode(',', $condition))->execute($values);
@@ -414,39 +414,39 @@ abstract class Entity extends \QF\Entity
                     if ($delete) {
                         $identifier->delete();
                     } else {
-                        $identifier->{$data[2]} = null;
+                        $identifier->clear($data[2]);
                         $identifier->save();
                     }   
                 } elseif(is_array($identifier)) {
-                    if (!$this->{static::getIdentifier()}) {
+                    if (!$this->has(static::getIdentifier())) {
                         return false;
                     }
                     $idList = array();
                     foreach ((array) $identifer as $id) {
-                        $idList[] = is_object($id) ? $id->{$data[0]::getIdentifier()} : $id;
+                        $idList[] = is_object($id) ? $id->get($data[0]::getIdentifier()) : $id;
                     }
                     if (!$rawDelete) {
-                        foreach ($repository->load(array($data[2] => $this->{static::getIdentifier()}, $data[0]::getIdentifier() . ' IN ('.implode(',', array_fill(0, count($idList), '?')).')'), $idList) as $related) {
+                        foreach ($repository->load(array($data[2] => $this->get(static::getIdentifier()), $data[0]::getIdentifier() . ' IN ('.implode(',', array_fill(0, count($idList), '?')).')'), $idList) as $related) {
                             if ($delete) {
                                 $related->delete();
                             } else {
-                                $related->{$data[2]} = null;
+                                $related->clear($data[2]);
                                 $related->save();
                             }
                         }
                     } else {
                         if ($delete) {
-                            $this->getDB()->prepare('DELETE FROM '.$data[0]::getTableName().' WHERE '.$data[2].' = ? AND '.$data[0]::getIdentifier() . ' IN ('.implode(',', array_fill(0, count($idList), '?')).')')->execute(array_merge(array($this->{static::getIdentifier()}), $idList));
+                            $this->getDB()->prepare('DELETE FROM '.$data[0]::getTableName().' WHERE '.$data[2].' = ? AND '.$data[0]::getIdentifier() . ' IN ('.implode(',', array_fill(0, count($idList), '?')).')')->execute(array_merge(array($this->get(static::getIdentifier())), $idList));
                         } else {
-                            $this->getDB()->prepare('UPDATE '.$data[0]::getTableName().' SET '.$data[2].' = ? WHERE '.$data[2].' = ? AND '.$data[0]::getIdentifier() . ' IN ('.implode(',', array_fill(0, count($idList), '?')).')')->execute(array_merge(array(null, $this->{static::getIdentifier()}), $idList));
+                            $this->getDB()->prepare('UPDATE '.$data[0]::getTableName().' SET '.$data[2].' = ? WHERE '.$data[2].' = ? AND '.$data[0]::getIdentifier() . ' IN ('.implode(',', array_fill(0, count($idList), '?')).')')->execute(array_merge(array(null, $this->get(static::getIdentifier())), $idList));
                         }
                     }
                 } elseif($identifier === true) {
-                    if (!$this->{static::getIdentifier()}) {
+                    if (!$this->has(static::getIdentifier())) {
                         return false;
                     }
                     if (!$rawDelete) {
-                        foreach ($repository->load(array($data[2] => $this->{static::getIdentifier()})) as $related) {
+                        foreach ($repository->load(array($data[2] => $this->get(static::getIdentifier()))) as $related) {
                             if ($delete) {
                                 $related->delete();
                             } else {
@@ -456,53 +456,53 @@ abstract class Entity extends \QF\Entity
                         }
                     } else {
                         if ($delete) {
-                            $this->getDB()->prepare('DELETE FROM '.$data[0]::getTableName().' WHERE '.$data[2].' = ?')->execute(array($this->{static::getIdentifier()}));
+                            $this->getDB()->prepare('DELETE FROM '.$data[0]::getTableName().' WHERE '.$data[2].' = ?')->execute(array($this->get(static::getIdentifier())));
                         } else {
-                            $this->getDB()->prepare('UPDATE '.$data[0]::getTableName().' SET '.$data[2].' = ? WHERE '.$data[2].' = ?')->execute(array(null, $this->{static::getIdentifier()}));
+                            $this->getDB()->prepare('UPDATE '.$data[0]::getTableName().' SET '.$data[2].' = ? WHERE '.$data[2].' = ?')->execute(array(null, $this->get(static::getIdentifier())));
                         }
                     }
                 } else {
-                    if (!$this->{static::getIdentifier()}) {
+                    if (!$this->has(static::getIdentifier())) {
                         return false;
                     }
                     if (!$rawDelete) {
-                        $related = $repository->loadOne(array($data[0]::getIdentifier() => $identifier, $data[2] => $this->{static::getIdentifier()}));
+                        $related = $repository->loadOne(array($data[0]::getIdentifier() => $identifier, $data[2] => $this->get(static::getIdentifier())));
                         if ($related) {
                             if ($delete) {
                                 $related->delete();
                             } else {
-                                $related->{$data[2]} = null;
+                                $related->clear($data[2]);
                                 $related->save();
                             }
                         }
                     } else {
                         if ($delete) {
-                            $this->getDB()->prepare('DELETE FROM '.$data[0]::getTableName().' WHERE '.$data[0]::getIdentifier().' = ? AND '.$data[2].' = ?')->execute(array($identifier, $this->{static::getIdentifier()}));
+                            $this->getDB()->prepare('DELETE FROM '.$data[0]::getTableName().' WHERE '.$data[0]::getIdentifier().' = ? AND '.$data[2].' = ?')->execute(array($identifier, $this->get(static::getIdentifier())));
                         } else {
-                            $this->getDB()->prepare('UPDATE '.$data[0]::getTableName().' SET '.$data[2].' = ? WHERE '.$data[0]::getIdentifier().' = ? AND '.$data[2].' = ?')->execute(array(null, $identifier, $this->{static::getIdentifier()}));
+                            $this->getDB()->prepare('UPDATE '.$data[0]::getTableName().' SET '.$data[2].' = ? WHERE '.$data[0]::getIdentifier().' = ? AND '.$data[2].' = ?')->execute(array(null, $identifier, $this->get(static::getIdentifier())));
                         }
                     }
                 }
             } elseif ($data[2] == $data[0]::getIdentifier()) {
-                $linkedIdentifier = $this->{$data[1]};
+                $linkedIdentifier = $this->get($data[1]);
                 if (is_array($identifier)) {
                     foreach ($identifier as $id) {
-                        if (($identifier == $linkedIdentifier) || (is_object($identifier) && $identifier->{$data[0]::getIdentifier()} == $linkedIdentifier)) {
+                        if (($identifier == $linkedIdentifier) || (is_object($identifier) && $identifier->get($data[0]::getIdentifier()) == $linkedIdentifier)) {
                             $identifier = $id;
                             break;
                         }
                     }
                 }
                 
-                $this->{$data[1]} = null;
+                $this->clear($data[1]);
                 $this->save();
                 if ($delete) {
-                    if (is_object($identifier) && $identifier->{$data[0]::getIdentifier()} == $linkedIdentifier) {
+                    if (is_object($identifier) && $identifier->get($data[0]::getIdentifier()) == $linkedIdentifier) {
                         $identifier->delete();
                     } elseif ($linkedIdentifier && ($identifier === true || $identifier == $linkedIdentifier)) {
                         if (!$rawDelete) {
                             $related = $repository->loadOne(array($data[0]::getIdentifier() => $linkedIdentifier));
-                            if ($related &&  $related->{$data[0]::getIdentifier()} == $linkedIdentifier) {
+                            if ($related &&  $related->get($data[0]::getIdentifier()) == $linkedIdentifier) {
                                 $related->delete();
                             }
                         } else {
@@ -512,12 +512,12 @@ abstract class Entity extends \QF\Entity
                 }
             }
         } else {
-            if (!$this->{static::getIdentifier()}) {
+            if (!$this->has(static::getIdentifier())) {
                 return false;
             }
             if ($identifier === true) {
                 if ($delete) {
-                    $stmt = $this->getDB()->prepare('SELECT '.$data[2].' FROM '.$data[3].' WHERE '.$data[1].' = ?')->execute(array($this->{static::getIdentifier()}));
+                    $stmt = $this->getDB()->prepare('SELECT '.$data[2].' FROM '.$data[3].' WHERE '.$data[1].' = ?')->execute(array($this->get(static::getIdentifier())));
                     $refTableIds = $stmt->fetchAll(\PDO::FETCH_COLUMN);
                     if (!$rawDelete) {
                         foreach($repository->load($data[0]::getIdentifier().' IN ('.implode(',', array_fill(0, count($refTableIds), '?')).')', $refTableIds) as $related) {
@@ -527,14 +527,14 @@ abstract class Entity extends \QF\Entity
                         $this->getDB()->prepare('DELETE FROM '.$data[0]::getTableName().' WHERE '.$data[0]::getIdentifier().' IN ('.implode(',', array_fill(0, count($refTableIds), '?')).')')->execute($refTableIds);
                     }
                 }
-                $this->getDB()->prepare('DELETE FROM '.$data[3].' WHERE '.$data[1].' = ?')->execute(array($this->{static::getIdentifier()}));
+                $this->getDB()->prepare('DELETE FROM '.$data[3].' WHERE '.$data[1].' = ?')->execute(array($this->get(static::getIdentifier())));
             } elseif (is_array($identifier)) {
                 $idList = array();
                 foreach ((array) $identifer as $id) {
-                    $idList[] = is_object($id) ? $id->{$data[0]::getIdentifier()} : $id;
+                    $idList[] = is_object($id) ? $id->get($data[0]::getIdentifier()) : $id;
                 }
                 if ($delete) {
-                    $stmt = $this->getDB()->prepare('SELECT '.$data[2].' FROM '.$data[3].' WHERE '.$data[1].' = ? AND '.$data[2] . ' IN ('.implode(',', array_fill(0, count($idList), '?')).')')->execute(array_merge(array($this->{static::getIdentifier()}), $idList));
+                    $stmt = $this->getDB()->prepare('SELECT '.$data[2].' FROM '.$data[3].' WHERE '.$data[1].' = ? AND '.$data[2] . ' IN ('.implode(',', array_fill(0, count($idList), '?')).')')->execute(array_merge(array($this->get(static::getIdentifier())), $idList));
                     $refTableIds = $stmt->fetchAll(\PDO::FETCH_COLUMN);
                     if (!$rawDelete) {
                         foreach($repository->load($data[0]::getIdentifier().' IN ('.implode(',', array_fill(0, count($refTableIds), '?')).')', $refTableIds) as $related) {
@@ -544,13 +544,13 @@ abstract class Entity extends \QF\Entity
                         $this->getDB()->prepare('DELETE FROM '.$data[0]::getTableName().' WHERE '.$data[0]::getIdentifier().' IN ('.implode(',', array_fill(0, count($refTableIds), '?')).')')->execute($refTableIds);
                     }
                 }
-                $this->getDB()->prepare('DELETE FROM '.$data[3].' WHERE '.$data[1].' = ? AND '.$data[2] . ' IN ('.implode(',', array_fill(0, count($idList), '?')).')')->execute(array_merge(array($this->{static::getIdentifier()}), $idList));
+                $this->getDB()->prepare('DELETE FROM '.$data[3].' WHERE '.$data[1].' = ? AND '.$data[2] . ' IN ('.implode(',', array_fill(0, count($idList), '?')).')')->execute(array_merge(array($this->get(static::getIdentifier())), $idList));
             } else {
                 if ($delete) {
                     if (is_object($identifier)) {
                         $identifier->delete();
                     } else {
-                        $stmt = $this->getDB()->prepare('SELECT id, '.$data[1].', '.$data[2].' FROM '.$data[3].' WHERE '.$data[1].' = ? AND '.$data[2].' = ?')->execute(array($this->{static::getIdentifier()}, $identifier));
+                        $stmt = $this->getDB()->prepare('SELECT id, '.$data[1].', '.$data[2].' FROM '.$data[3].' WHERE '.$data[1].' = ? AND '.$data[2].' = ?')->execute(array($this->get(static::getIdentifier()), $identifier));
                         $result = $stmt->fetch(\PDO::FETCH_NUM);
                         $stmt->closeCursor();
                         if ($result) {
@@ -565,7 +565,7 @@ abstract class Entity extends \QF\Entity
                         }
                     }
                 }
-                $this->getDB()->prepare('DELETE FROM '.$data[3].' WHERE '.$data[1].' = ? AND '.$data[2].' = ?')->execute(array($this->{static::getIdentifier()}, is_object($identifier) ? $identifier->{$data[0]::getIdentifier()} : $identifier));
+                $this->getDB()->prepare('DELETE FROM '.$data[3].' WHERE '.$data[1].' = ? AND '.$data[2].' = ?')->execute(array($this->get(static::getIdentifier()), is_object($identifier) ? $identifier->get($data[0]::getIdentifier()) : $identifier));
             }
         }
     }
@@ -583,7 +583,6 @@ abstract class Entity extends \QF\Entity
             return static::getRepository($db)->save($this);
         } catch (\Exception $e) {
             throw $e;
-            return false;
         }
     }
 
@@ -600,7 +599,6 @@ abstract class Entity extends \QF\Entity
             return static::getRepository($db)->remove($this);
         } catch (\Exception $e) {
             throw $e;
-            return false;
         }
     }
 
@@ -750,38 +748,38 @@ abstract class Entity extends \QF\Entity
     public static function install($db, $installedVersion = 0, $targetVersion = 0)
     {
         return false; //'no installation configured for this Entity';
-        
+
         if ($installedVersion <= 0 && $targetVersion >= 1) {
             //VERSION 0->1
-            $sql = "CREATE TABLE ".static::getTableName()." (
-                      ".static::getIdentifier()." INT(11) ".(static::isAutoIncrement() ? "AUTO_INCREMENT" : "").",
+            $sql = "CREATE TABLE " . static::getTableName() . " (
+                      " . static::getIdentifier() . " INT(11) " . (static::isAutoIncrement() ? "AUTO_INCREMENT" : "") . ",
                           
                       slug VARCHAR(255) NOT NULL,
                       foo TINYINT(1) NOT NULL,
                       
-					  PRIMARY KEY (".static::getIdentifier()."),
+                      PRIMARY KEY (" . static::getIdentifier() . "),
                       UNIQUE KEY slug (slug),
                       KEY foo (foo)
                       
-					) ENGINE=INNODB DEFAULT CHARSET=utf8";
+                    ) ENGINE=INNODB DEFAULT CHARSET=utf8";
 
-                $db->query($sql);
+            $db->query($sql);
         }
-        
+
         if ($installedVersion <= 1 && $targetVersion >= 2) {
             //VERSION 1->2
-            $sql = "ALTER TABLE ".static::getTableName()."
-					  ADD something VARCHAR(255)";
+            $sql = "ALTER TABLE " . static::getTableName() . "
+                        ADD something VARCHAR(255)";
 
             $db->query($sql);
         }
 
         //for every new Version, copy&paste this IF block and set MAX_VERSION to the new version
         /*
-        if ($installedVersion <= MAX_VERSION - 1 && $targetVersion >= MAX_VERSION) {
-            //VERSION MAX_VERSION-1->MAX_VERSION
-        }
-        */
+          if ($installedVersion <= MAX_VERSION - 1 && $targetVersion >= MAX_VERSION) {
+          //VERSION MAX_VERSION-1->MAX_VERSION
+          }
+         */
 
         return true;
     }

@@ -81,11 +81,11 @@ class Repository
         $entity = new $name($this->getDB());
         if ($isNew) {
             foreach ($data as $k => $v) {
-                $entity->$k = $v;
+                $entity->set($k, $v);
             }
         } else {
             foreach ($data as $k => $v) {
-                $entity->$k = $v;
+                $entity->set($k, $v);
                 $entity->setDatabaseProperty($k, $v);
             }
             $entity->postLoad($this->getDB());
@@ -383,11 +383,11 @@ class Repository
             
             if (isset($relData[3]) && $relData[3] === false && $relData[2] == '_id') {
                 foreach ($entities[$rel[0]] as $fromEntity) {
-                    $fromValues = array_merge($fromValues, (array) $fromEntity->{$relData[1]});
+                    $fromValues = array_merge($fromValues, (array) $fromEntity->get($relData[1]));
                 }
             } else {
                 foreach ($entities[$rel[0]] as $fromEntity) {
-                    $fromValues[] = $fromEntity->{$relData[1]};
+                    $fromValues[] = $fromEntity->get($relData[1]);
                 }
             }
                     
@@ -399,17 +399,17 @@ class Repository
             foreach ($entities[$rel[0]] as $fromEntity) {
                 foreach ($entities[$rel[2]] as $toEntity) {
                     if (!empty($relData[3])) {
-                        if ($fromEntity->{$relData[1]} == $toEntity->{$relData[2]}) {
+                        if ($fromEntity->get($relData[1]) == $toEntity->get($relData[2])) {
                             $fromEntity->set($rel[1], $toEntity);
                         }
                     } elseif(isset($relData[3])) {
-                        if ($relData[1] == '_id' && in_array($fromEntity->{$relData[1]}, (array) $toEntity->{$relData[2]})) {
+                        if ($relData[1] == '_id' && in_array($fromEntity->get($relData[1]), (array) $toEntity->get($relData[2]))) {
                             $fromEntity->add($rel[1], $toEntity);
-                        } elseif(in_array($toEntity->{$relData[2]}, (array) $fromEntity->{$relData[1]})) {
+                        } elseif(in_array($toEntity->get($relData[2]), (array) $fromEntity->get($relData[1]))) {
                             $fromEntity->add($rel[1], $toEntity);
                         }
                     } else {
-                        if ($fromEntity->{$relData[1]} == $toEntity->{$relData[2]}) {
+                        if ($fromEntity->get($relData[1]) == $toEntity->get($relData[2])) {
                             $fromEntity->add($rel[1], $toEntity);
                         }
                     }
@@ -512,14 +512,14 @@ class Repository
             if ($entity->isNew()) {
                 $insert = array();
                 foreach ($entityClass::getColumns() as $column) {
-                    if ($entity->$column !== null) {
-                        $insert[$column] = $entity->$column;
+                    if ($entity->get($column) !== null) {
+                        $insert[$column] = $entity->get($column);
                     }
                 }
                 $status = $this->getCollection()->insert($insert, $w !== null ? array('w' => $w) : array());
                 if ($status) {
                     if ($entityClass::isAutoId()) {
-                        $entity->_id = $insert['_id'];
+                        $entity->set('_id', $insert['_id']);
                     }
                     foreach ($insert as $key => $value) {
                         $entity->setDatabaseProperty($key, $value);
@@ -531,18 +531,18 @@ class Repository
             } else {
                 $query = array();
                 foreach ($entityClass::getColumns() as $column) {
-                    if ($entity->$column !== $entity->getDatabaseProperty($column)) {
-                        if ($entity->$column === null) {
+                    if ($entity->get($column) !== $entity->getDatabaseProperty($column)) {
+                        if ($entity->get($column) === null) {
                             $query['$unset'][$column] = 1;
                         } else {
-                            $query['$set'][$column] = $entity->$column;
+                            $query['$set'][$column] = $entity->get($column);
                         }
                     }
                 }
                 if (!count($query)) {
                     return true;
                 }
-                $status = $this->getCollection()->update(array('_id' => $entity->_id), $query, $w !== null ? array('w' => $w) : array());
+                $status = $this->getCollection()->update(array('_id' => $entity->get('_id')), $query, $w !== null ? array('w' => $w) : array());
                 if ($status) {
                     if (!empty($query['$set'])) {
                         foreach ($query['$set'] as $key => $value) {
@@ -573,14 +573,14 @@ class Repository
      */
     public function remove(Entity $entity, $w = true)
     {
-        if (!$entity->_id) {
+        if (!$entity->has('_id')) {
             return false;
         }
         try {
             if ($entity->preRemove($this->getDB()) === false) {
                 return false;
             }
-            $status = $this->getCollection()->remove(array('_id' => $entity->_id), $w !== null ? array('w' => $w) : array());
+            $status = $this->getCollection()->remove(array('_id' => $entity->get('_id')), $w !== null ? array('w' => $w) : array());
             if ($status) {
                 $entity->clearDatabaseProperties();
                 $entity->postRemove($this->getDB());

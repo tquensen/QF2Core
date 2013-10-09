@@ -63,11 +63,11 @@ class Repository
         $entity = new $entityClass($this->getDB());
         if ($isNew) {
             foreach ($data as $k => $v) {
-                $entity->$k = $v;
+                $entity->set($k, $v);
             }
         } else {
             foreach ($data as $k => $v) {
-                $entity->$k = $v;
+                $entity->set($k, $v);
                 $entity->setDatabaseProperty($k, $v);
             }
             $entity->postLoad($this->getDB());
@@ -76,7 +76,7 @@ class Repository
     }
     
     public function save(Entity $entity)
-	{
+    {
         $entityClass = get_class($entity);
         try
         {
@@ -89,11 +89,11 @@ class Repository
                 $values = array();
                 foreach ($entityClass::getColumns() as $column)
                 {
-                    if (isset($entity->$column) && $entity->$column !== null)
+                    if ($entity->get($column) !== null)
                     {
                         $fields[] = $column;
                         //$query->set(' '.$column.' = ? ');
-                        $values[] = $entity->$column;
+                        $values[] = $entity->get($column);
                     }
                 }
 
@@ -103,12 +103,12 @@ class Repository
 
                 if ($entityClass::isAutoIncrement())
                 {
-                    $entity->{$entityClass::getIdentifier()} = $this->getDB()->lastInsertId();
+                    $entity->set($entityClass::getIdentifier(), $this->getDB()->lastInsertId());
                 }
 
                 foreach ($entityClass::getColumns() as $column)
                 {
-                    $entity->setDatabaseProperty($column, $entity->$column);
+                    $entity->setDatabaseProperty($column, $entity->get($column));
                 } 
                 
                 if ($result) {
@@ -124,11 +124,11 @@ class Repository
                 $values = array();
                 foreach ($entityClass::getColumns() as $column)
                 {
-                    if ($entity->$column !== $entity->getDatabaseProperty($column))
+                    if ($entity->get($column) !== $entity->getDatabaseProperty($column))
                     {
                         $fields[] = $column;
                         //$query->set(' '.$column.' = ? ');
-                        $values[] = $entity->$column;
+                        $values[] = $entity->get($column);
                         $update = true;
                     }
                 }
@@ -139,15 +139,15 @@ class Repository
                     return true;
                 }
 
-                $values[] = $entity->{$entityClass::getIdentifier()};
+                $values[] = $entity->get($entityClass::getIdentifier());
 
                 $result = $query->execute($values);
 
                 foreach ($entityClass::getColumns() as $column)
                 {
-                    if (isset($entity->$column) && $entity->$column !== $entity->getDatabaseProperty($column))
+                    if ($entity->has($column) && $entity->get($column) !== $entity->getDatabaseProperty($column))
                     {
-                        $entity->setDatabaseProperty($column, $entity->$column);
+                        $entity->setDatabaseProperty($column, $entity->get($column));
                     }
                 }
                 
@@ -213,7 +213,7 @@ class Repository
         } else {
             foreach($this->load($conditions, $values) as $entity) {
                 foreach ($set as $k => $v) {
-                    $entity->$k = $v;
+                    $entity->set($k, $v);
                 }
                 $entity->save();
             } 
@@ -222,7 +222,7 @@ class Repository
 	}
     
     public function remove($entity)
-	{
+    {
         try
         {
             if (is_object($entity))
@@ -232,13 +232,13 @@ class Repository
                 }
             
                 $entityClass = get_class($entity);
-                if (!isset($entity->{$entityClass::getIdentifier()}) || !$entity->{$entityClass::getIdentifier()})
+                if (!$entity->has($entityClass::getIdentifier()))
                 {
                     return false;
                 }
 
                 $query = $this->getDB()->prepare('DELETE FROM '.$entityClass::getTableName().' WHERE '.$entityClass::getIdentifier().' = ? LIMIT 1');
-                $result = $query->execute(array($entity->{$entityClass::getIdentifier()}));
+                $result = $query->execute(array($entity->get($entityClass::getIdentifier())));
                 $entity->clearDatabaseProperties();
                 
                 if ($result) {
@@ -254,7 +254,7 @@ class Repository
             foreach ($entityClass::getRelations() as $relation => $info) {
                 if (isset($info[3]) && $info[3] !== true) {
                     $query = $this->getDB()->prepare('DELETE FROM '.$info[3].' WHERE '.$info[1].' = ?');
-                    $query->execute(array(is_object($entity) ? $entity->{$entityClass::getIdentifier()} : $entity));
+                    $query->execute(array(is_object($entity) ? $entity->get($entityClass::getIdentifier()) : $entity));
                 }
             }
 
@@ -498,7 +498,7 @@ class Repository
             if (isset($relData[3]) && $relData[3] !== true) {
                 $refValues = array();
                 foreach ($entities[$rel[0]] as $fromEntity) {
-                    array_push($refValues, $fromEntity->{$entityClasses[$rel[0]]::getIdentifier()});
+                    array_push($refValues, $fromEntity->get($entityClasses[$rel[0]]::getIdentifier()));
                 }
                     
                 if (!empty($options['aggregate'])) {
@@ -522,7 +522,7 @@ class Repository
                         
                         foreach ($entities[$rel[0]] as $fromEntity) {
                             foreach ($aggregateResults as $aggregateResult) {
-                                if ($fromEntity->{$entityClasses[$rel[0]]::getIdentifier()} == $aggregateResults['identifier']) {
+                                if ($fromEntity->get($entityClasses[$rel[0]]::getIdentifier()) == $aggregateResults['identifier']) {
                                     $fromEntity->set($aggregateTargetProperty, $aggregateResults['aggregateValue']);
                                 }
                             }
@@ -548,7 +548,7 @@ class Repository
                 
             } else {                
                 foreach ($entities[$rel[0]] as $fromEntity) {
-                    array_push($values, $fromEntity->{$relData[1]});
+                    array_push($values, $fromEntity->get($relData[1]));
                 }
                 
                 array_push($condition, $relData[2].' IN ('.implode(',', array_fill(0, count($entities[$rel[0]]), '?')).')');
@@ -573,7 +573,7 @@ class Repository
                         
                         foreach ($entities[$rel[0]] as $fromEntity) {
                             foreach ($aggregateResults as $aggregateResult) {
-                                if ($fromEntity->{$relData[1]} == $aggregateResults['identifier']) {
+                                if ($fromEntity->get($relData[1]) == $aggregateResults['identifier']) {
                                     $fromEntity->set($aggregateTargetProperty, $aggregateResults['aggregateValue']);
                                 }
                             }
@@ -584,7 +584,7 @@ class Repository
 
                     foreach ($entities[$rel[0]] as $fromEntity) {
                         foreach ($entities[$rel[2]] as $toEntity) {
-                            if ($fromEntity->{$relData[1]} == $toEntity->{$relData[2]}) {
+                            if ($fromEntity->get($relData[1]) == $toEntity->get($relData[2])) {
                                 if (!empty($relData[3])) {
                                     $fromEntity->set($rel[1], $toEntity);
                                 } else {

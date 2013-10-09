@@ -28,7 +28,10 @@ class Cli
         }
         
         $class = new $class();
-        return $class->$task($parameter, $this);
+        if ($this->container && $class instanceof ContainerAwareInterface) {
+            $class->setContainer($this->container);
+        }
+        return $class->$task($parameter);
     }
 
     /**

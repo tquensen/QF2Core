@@ -282,7 +282,10 @@ class Core
         }
         
         $controller = new $controller();
-        return $controller->$action($parameter, $this, $this->getView());
+        if ($this->container && $controller instanceof ContainerAwareInterface) {
+            $controller->setContainer($this->container);
+        }
+        return $controller->$action($parameter);
     }
     
     /**
