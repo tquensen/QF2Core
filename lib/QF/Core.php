@@ -19,7 +19,7 @@ class Core
     protected $currentRoute = null;
     protected $currentRouteParameter = null;
     
-    protected $currentRouteController = null;
+    protected $currentRouteService = null;
     protected $currentRouteAction = null;
     
     protected $requestMethod = null;
@@ -136,7 +136,7 @@ class Core
     public function callRoute($route, $parameter = array(), $isMainRoute = false)
     {
         $routeData = $this->getRoute($route);
-        if (!$routeData || empty($routeData['controller']) || empty($routeData['action'])) {
+        if (!$routeData || empty($routeData['service']) || empty($routeData['action'])) {
             throw new HttpException('page not found', 404);
         }
         
@@ -147,13 +147,13 @@ class Core
         if ($isMainRoute) {
             $this->currentRoute = $route;
             $this->currentRouteParameter = $parameter;
-            $this->currentRouteController = $routeData['controller'];
+            $this->currentRouteService = $routeData['controller'];
             $this->currentRouteAction = $routeData['action'];
         }
         
         $this->security->checkRouteRights($routeData);
           
-        return $this->callAction($routeData['controller'], $routeData['action'], $parameter);       
+        return $this->callAction($routeData['service'], $routeData['action'], $parameter);       
     }
     
     /**
@@ -192,7 +192,7 @@ class Core
         $theme = $this->getView()->getTheme();
         
         foreach ($slotData as $widget) {
-            if (empty($widget['controller']) || empty($widget['action'])) {
+            if (empty($widget['service']) || empty($widget['action'])) {
                 continue;
             }
             
@@ -244,7 +244,7 @@ class Core
                 $params = !empty($widget['parameter']) ? $widget['parameter'] : array();
                 $params['slot'] = $slot;
                 $params['slotData'] = $parameter;
-                $response[] = $this->callAction($widget['controller'], $widget['action'], $params);  
+                $response[] = $this->callAction($widget['service'], $widget['action'], $params);  
             } catch (\Exception $e) {
                 continue;
             } 
@@ -268,24 +268,23 @@ class Core
     }
     
     /**
-     * calls the action defined by $controller and $action and returns the output
+     * calls the action defined by $service and $action and returns the output
      *
-     * @param string $controller the controller
+     * @param string $service the controller service
      * @param string $action the action
      * @param array $parameter parameters for the page
      * @return string the parsed output of the page
      */
-    public function callAction($controller, $action, $parameter = array())
+    public function callAction($service, $action, $parameter = array())
     {
-        if (!class_exists($controller) || !method_exists($controller, $action)) {
+        $c = $this->getContainer();
+        $class = $c[$service];
+        
+        if (!method_exists($class, $action)) {
             throw new HttpException('action not found', 404);
         }
-        
-        $controller = new $controller();
-        if ($this->container && $controller instanceof ContainerAwareInterface) {
-            $controller->setContainer($this->container);
-        }
-        return $controller->$action($parameter);
+
+        return $class->$action($parameter);
     }
     
     /**
@@ -448,9 +447,9 @@ class Core
         return $this->currentRouteParameter;
     }
     
-    public function getCurrentRouteController()
+    public function getCurrentRouteService()
     {
-        return $this->currentRouteController;
+        return $this->currentRouteService;
     }
 
     public function getCurrentRouteAction()
@@ -518,9 +517,9 @@ class Core
         $this->currentRouteParameter = $currentRouteParameter;
     }
     
-    public function setCurrentRouteController($currentRouteController)
+    public function setCurrentRouteService($currentRouteService)
     {
-        $this->currentRouteController = $currentRouteController;
+        $this->currentRouteService = $currentRouteService;
     }
 
     public function setCurrentRouteAction($currentRouteAction)

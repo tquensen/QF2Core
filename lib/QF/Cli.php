@@ -4,6 +4,10 @@ namespace QF;
 class Cli
 {
 
+    /**
+     *
+     * @var \Pimple
+     */
     protected $container = null;
     
     protected $tasks = null;
@@ -16,21 +20,20 @@ class Cli
     /**
      * calls the task defined by $class and $task and returns the output
      *
-     * @param string $class the class containing the task
+     * @param string $service the service to call
      * @param string $task the task name
      * @param array $parameter parameters for the task
      * @return string the parsed output of the task
      */
-    public function callTask($class, $task, $parameter = array())
+    public function callTask($service, $task, $parameter = array())
     {
-        if (!class_exists($class) || !method_exists($class, $task)) {
+        $c = $this->getContainer();
+        $class = $c[$service];
+        
+        if (!method_exists($class, $task)) {
             throw new \Exception('task '.$class.'->'.$task.' not found');
         }
-        
-        $class = new $class();
-        if ($this->container && $class instanceof ContainerAwareInterface) {
-            $class->setContainer($this->container);
-        }
+
         return $class->$task($parameter);
     }
 

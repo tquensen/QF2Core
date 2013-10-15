@@ -76,11 +76,9 @@ class EventDispatcher
         }
 
         foreach ($this->unloadedListeners[$event] as $listener) {
-            $service = array_shift($listener);
-            $method = array_shift($listener);
-            $priority = array_shift($listener);
+            $priority = isset($listener['priority']) ? (int) $listener['priority'] : 0;
 
-            $this->addListener($event, array($this->container[$service], $method), $priority ? : 0);
+            $this->addListener($event, array($this->container[$listener['service']], $listener['method']), $priority);
         }
         
         $this->unloadedListeners[$event] = array();
