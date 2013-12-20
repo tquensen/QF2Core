@@ -24,6 +24,8 @@ class Core
     
     protected $requestMethod = null;
     
+    protected $viewCache = array();
+    
     public function __construct()
     {       
         if (isset($_REQUEST['REQUEST_METHOD'])) {
@@ -332,8 +334,8 @@ class Core
         }
         
         $allParameter = array_merge(isset($routeData['parameter']) ? $routeData['parameter'] : array(), $params);
-		foreach ($allParameter as $param=>$value)
-		{
+	foreach ($allParameter as $param=>$value)
+	{
             //remove optional parameters if -it is set to false, -it is the default value or -it doesn't match the parameter pattern
             if (!$value || empty($params[$param]) || (isset($routeData['parameter'][$param]) && $value == $routeData['parameter'][$param]) || (isset($routeData['patterns'][$param]) && !preg_match('#^'.$routeData['patterns'][$param].'$#', $value))) {
                 $regexSearch[] = '#\([^:\)]*:'.$param.':[^\)]*\)#U';
@@ -341,11 +343,11 @@ class Core
             $currentSearch = ':'.$param.':';
             $search[] = $currentSearch;
             $replace[] = urlencode($value);
-		}
+	}
         if (count($regexSearch)) {
             $url = preg_replace($regexSearch, '', $url);
         }
-		$url = str_replace($search, $replace, $url);
+	$url = str_replace($search, $replace, $url);
         
         return $baseurl.$url;
     }

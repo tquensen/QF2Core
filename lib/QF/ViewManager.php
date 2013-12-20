@@ -59,25 +59,32 @@ class ViewManager
         if (!$baseurl = $this->staticUrl) {
             $baseurl = $this->baseUrl ?: '/';
         }
-        if ($module && $modulepath) {
-            if ($theme && file_exists($this->templatePath . '/' . $themeString . 'public/modules/'.$module.'/'.$file)) {
-                return $baseurl . 'templates/' . $themeString . 'modules/'.$module.'/'.$file . ($cacheBuster ? '?'. filemtime($this->templatePath . '/' . $themeString . 'public/modules/'.$module.'/'.$file) : '');
-            } elseif (file_exists($this->templatePath . '/default/public/modules/'.$module.'/'.$file)) {
-                return $baseurl . 'templates/modules/'.$module.'/'.$file . ($cacheBuster ? '?'. filemtime($this->templatePath . '/default/public/modules/'.$module.'/'.$file) : '');
-            } elseif (file_exists($modulepath.'/public/'.$file)) {
-                return $baseurl . 'modules/'.$module.'/'.$file . ($cacheBuster ? '?'. filemtime($this->modulePath . '/'.$module.'/public/'.$file) : '');
-            } else {
-                return $baseurl . 'modules/'.$module.'/'.$file;
-            }
+        $viewHash = md5($theme.$file.$modulepath.$cacheBuster);
+        if (isset($this->viewCache[$viewHash])) {
+            $_file = $this->viewCache[$viewHash];
         } else {
-            if ($theme && file_exists($this->templatePath . '/' . $themeString . 'public/'.$file)) {
-                return $baseurl . 'templates/' . $themeString . $file . ($cacheBuster ? '?'. filemtime($this->templatePath . '/' . $themeString . 'public/'.$file) : '');
-            } elseif (file_exists($this->templatePath . '/default/public/'.$file)) {
-                return $baseurl . 'templates/default/'.$file . ($cacheBuster ? '?'. filemtime($this->templatePath . '/default/public/'.$file) : '');
+            if ($module && $modulepath) {
+                if ($theme && file_exists($this->templatePath . '/' . $themeString . 'public/modules/'.$module.'/'.$file)) {
+                    $_file =  $baseurl . 'templates/' . $themeString . 'modules/'.$module.'/'.$file . ($cacheBuster ? '?'. filemtime($this->templatePath . '/' . $themeString . 'public/modules/'.$module.'/'.$file) : '');
+                } elseif (file_exists($this->templatePath . '/default/public/modules/'.$module.'/'.$file)) {
+                    $_file =  $baseurl . 'templates/modules/'.$module.'/'.$file . ($cacheBuster ? '?'. filemtime($this->templatePath . '/default/public/modules/'.$module.'/'.$file) : '');
+                } elseif (file_exists($modulepath.'/public/'.$file)) {
+                    $_file =  $baseurl . 'modules/'.$module.'/'.$file . ($cacheBuster ? '?'. filemtime($this->modulePath . '/'.$module.'/public/'.$file) : '');
+                } else {
+                    $_file =  $baseurl . 'modules/'.$module.'/'.$file;
+                }
             } else {
-                return $baseurl . $file;
+                if ($theme && file_exists($this->templatePath . '/' . $themeString . 'public/'.$file)) {
+                    $_file =  $baseurl . 'templates/' . $themeString . $file . ($cacheBuster ? '?'. filemtime($this->templatePath . '/' . $themeString . 'public/'.$file) : '');
+                } elseif (file_exists($this->templatePath . '/default/public/'.$file)) {
+                    $_file =  $baseurl . 'templates/default/'.$file . ($cacheBuster ? '?'. filemtime($this->templatePath . '/default/public/'.$file) : '');
+                } else {
+                    $_file =  $baseurl . $file;
+                }
             }
+            $this->viewCache[$viewHash] = $_file;
         }
+        return $_file;
     }
     
     /**
@@ -100,32 +107,38 @@ class ViewManager
         
         $_modulepath = $module && isset($this->modules[$module]) ? $this->modules[$module] : false;
 
-        if ($_lang && $_theme && file_exists($this->templatePath . '/' .$_themeString. 'modules/' . $module . '/' . $_lang . '/' . $view . $_formatString . '.php')) {
-            $_file = $this->templatePath . '/' .$_themeString. 'modules/' . $module . '/' . $_lang . '/' . $view . $_formatString . '.php';
-        } elseif ($_lang && $_theme && !$_format && file_exists($this->templatePath . '/' .$_themeString. 'modules/' . $module . '/' . $_lang . '/' . $view . '.' . $this->defaultFormat . '.php')) {
-            $_file = $this->templatePath . '/' .$_themeString. 'modules/' . $module . '/' . $_lang . '/' . $view . '.' . $this->defaultFormat . '.php';
-        } elseif ($_lang && file_exists($this->templatePath . '/default/modules/' . $module . '/' . $_lang . '/' . $view . $_formatString . '.php')) {
-            $_file = $this->templatePath . '/default/modules/' . $module . '/' . $_lang . '/' . $view . $_formatString . '.php';
-        } elseif ($_lang && !$_format && file_exists($this->templatePath . '/default/modules/' . $module . '/' . $_lang . '/' . $view . '.' . $this->defaultFormat . '.php')) {
-            $_file = $this->templatePath . '/default/modules/' . $module . '/' . $_lang . '/' . $view . '.' . $this->defaultFormat . '.php';
-        } elseif ($_lang && file_exists($_modulepath . '/views/' . $_lang . '/' . $view . $_formatString . '.php')) {
-            $_file = $_modulepath . '/views/' . $_lang . '/' . $view . $_formatString . '.php';
-        } elseif ($_lang && !$_format && file_exists($_modulepath . '/views/' . $_lang . '/' . $view . '.' . $this->defaultFormat . '.php')) {
-            $_file = $_modulepath . '/views/' . $_lang . '/' . $view . '.' . $this->defaultFormat . '.php';
-        } elseif ($_theme && file_exists($this->templatePath . '/' .$_themeString. 'modules/' . $module . '/' . $view . $_formatString . '.php')) {
-            $_file = $this->templatePath . '/' .$_themeString. 'modules/' . $module . '/' . $view . $_formatString . '.php';
-        } elseif ($_theme && !$_format && file_exists($this->templatePath . '/' .$_themeString. 'modules/' . $module . '/' . $view . '.' . $this->defaultFormat . '.php')) {
-            $_file = $this->templatePath . '/' .$_themeString. 'modules/' . $module . '/' . $view . '.' . $this->defaultFormat . '.php';
-        } elseif (file_exists($this->templatePath . '/default/modules/' . $module . '/' . $view . $_formatString . '.php')) {
-            $_file = $this->templatePath . '/default/modules/' . $module . '/' . $view . $_formatString . '.php';
-        } elseif (!$_format && file_exists($this->templatePath . '/default/modules/' . $module . '/' . $view . '.' . $this->defaultFormat . '.php')) {
-            $_file = $this->templatePath . '/default/modules/' . $module . '/' . $view . '.' . $this->defaultFormat . '.php';
-        } elseif (file_exists($_modulepath . '/views/' . $view . $_formatString . '.php')) {
-            $_file = $_modulepath . '/views/' . $view . $_formatString . '.php';
-        } elseif (!$_format && file_exists($_modulepath . '/views/' . $view . '.' . $this->defaultFormat . '.php')) {
-            $_file = $_modulepath . '/views/' . $view . '.' . $this->defaultFormat . '.php';
+        $viewHash = md5($_theme.$_lang.$_format.$_modulepath.$view);
+        if (isset($this->viewCache[$viewHash])) {
+            $_file = $this->viewCache[$viewHash];
         } else {
-            throw new HttpException('view not found', 404);
+            if ($_lang && $_theme && file_exists($this->templatePath . '/' .$_themeString. 'modules/' . $module . '/' . $_lang . '/' . $view . $_formatString . '.php')) {
+                $_file = $this->templatePath . '/' .$_themeString. 'modules/' . $module . '/' . $_lang . '/' . $view . $_formatString . '.php';
+            } elseif ($_lang && $_theme && !$_format && file_exists($this->templatePath . '/' .$_themeString. 'modules/' . $module . '/' . $_lang . '/' . $view . '.' . $this->defaultFormat . '.php')) {
+                $_file = $this->templatePath . '/' .$_themeString. 'modules/' . $module . '/' . $_lang . '/' . $view . '.' . $this->defaultFormat . '.php';
+            } elseif ($_lang && file_exists($this->templatePath . '/default/modules/' . $module . '/' . $_lang . '/' . $view . $_formatString . '.php')) {
+                $_file = $this->templatePath . '/default/modules/' . $module . '/' . $_lang . '/' . $view . $_formatString . '.php';
+            } elseif ($_lang && !$_format && file_exists($this->templatePath . '/default/modules/' . $module . '/' . $_lang . '/' . $view . '.' . $this->defaultFormat . '.php')) {
+                $_file = $this->templatePath . '/default/modules/' . $module . '/' . $_lang . '/' . $view . '.' . $this->defaultFormat . '.php';
+            } elseif ($_lang && file_exists($_modulepath . '/views/' . $_lang . '/' . $view . $_formatString . '.php')) {
+                $_file = $_modulepath . '/views/' . $_lang . '/' . $view . $_formatString . '.php';
+            } elseif ($_lang && !$_format && file_exists($_modulepath . '/views/' . $_lang . '/' . $view . '.' . $this->defaultFormat . '.php')) {
+                $_file = $_modulepath . '/views/' . $_lang . '/' . $view . '.' . $this->defaultFormat . '.php';
+            } elseif ($_theme && file_exists($this->templatePath . '/' .$_themeString. 'modules/' . $module . '/' . $view . $_formatString . '.php')) {
+                $_file = $this->templatePath . '/' .$_themeString. 'modules/' . $module . '/' . $view . $_formatString . '.php';
+            } elseif ($_theme && !$_format && file_exists($this->templatePath . '/' .$_themeString. 'modules/' . $module . '/' . $view . '.' . $this->defaultFormat . '.php')) {
+                $_file = $this->templatePath . '/' .$_themeString. 'modules/' . $module . '/' . $view . '.' . $this->defaultFormat . '.php';
+            } elseif (file_exists($this->templatePath . '/default/modules/' . $module . '/' . $view . $_formatString . '.php')) {
+                $_file = $this->templatePath . '/default/modules/' . $module . '/' . $view . $_formatString . '.php';
+            } elseif (!$_format && file_exists($this->templatePath . '/default/modules/' . $module . '/' . $view . '.' . $this->defaultFormat . '.php')) {
+                $_file = $this->templatePath . '/default/modules/' . $module . '/' . $view . '.' . $this->defaultFormat . '.php';
+            } elseif (file_exists($_modulepath . '/views/' . $view . $_formatString . '.php')) {
+                $_file = $_modulepath . '/views/' . $view . $_formatString . '.php';
+            } elseif (!$_format && file_exists($_modulepath . '/views/' . $view . '.' . $this->defaultFormat . '.php')) {
+                $_file = $_modulepath . '/views/' . $view . '.' . $this->defaultFormat . '.php';
+            } else {
+                throw new HttpException('view not found', 404);
+            }
+            $this->viewCache[$viewHash] = $_file;
         }
 
         extract($parameter, \EXTR_OVERWRITE);
@@ -178,42 +191,48 @@ class ViewManager
             return $content;
         }
 
-        if ($_format) {
-            if ($_lang && $_theme && $_templateName && file_exists($this->templatePath . '/' . $_themeString . $_lang . '/' . $_templateName . '.' . $_format . '.php')) {
-                $_file = $this->templatePath . '/' . $_themeString . $_lang . '/' . $_templateName . '.' . $_format . '.php';
-            } elseif ($_lang && $_templateName && file_exists($this->templatePath . '/default/' . $_lang . '/' . $_templateName . '.' . $_format . '.php')) {
-                $_file = $this->templatePath . '/default/' . $_lang . '/' . $_templateName . '.' . $_format . '.php';
-            } elseif ($_lang && $_theme && file_exists($this->templatePath . '/' . $_themeString . $_lang . '/' . 'default.' . $_format . '.php')) {
-                $_file = $this->templatePath . '/'. $_themeString . $_lang . '/' . 'default.' . $_format . '.php';
-            } elseif ($_lang && file_exists($this->templatePath . '/default/' . $_lang . '/default.' . $_format . '.php')) {
-                $_file = $this->templatePath . '/default/' . $_lang . '/default.' . $_format . '.php';
-            } else if ($_theme && $_templateName && file_exists($this->templatePath . '/' . $_themeString . $_templateName . '.' . $_format . '.php')) {
-                $_file = $this->templatePath . '/' . $_themeString . $_templateName . '.' . $_format . '.php';
-            } elseif ($_templateName && file_exists($this->templatePath . '/default/' . $_templateName . '.' . $_format . '.php')) {
-                $_file = $this->templatePath . '/default/' . $_templateName . '.' . $_format . '.php';
-            } elseif ($_theme && file_exists($this->templatePath . '/' . $_themeString . 'default.' . $_format . '.php')) {
-                $_file = $this->templatePath . '/'. $_themeString . 'default.' . $_format . '.php';
-            } elseif (file_exists($this->templatePath . '/default/default.' . $_format . '.php')) {
-                $_file = $this->templatePath . '/default/default.' . $_format . '.php';
+        $viewHash = md5($_theme.$_lang.$_format.$_templateName);
+        if (isset($this->viewCache[$viewHash])) {
+            $_file = $this->viewCache[$viewHash];
+        } else {
+            if ($_format) {
+                if ($_lang && $_theme && $_templateName && file_exists($this->templatePath . '/' . $_themeString . $_lang . '/' . $_templateName . '.' . $_format . '.php')) {
+                    $_file = $this->templatePath . '/' . $_themeString . $_lang . '/' . $_templateName . '.' . $_format . '.php';
+                } elseif ($_lang && $_templateName && file_exists($this->templatePath . '/default/' . $_lang . '/' . $_templateName . '.' . $_format . '.php')) {
+                    $_file = $this->templatePath . '/default/' . $_lang . '/' . $_templateName . '.' . $_format . '.php';
+                } elseif ($_lang && $_theme && file_exists($this->templatePath . '/' . $_themeString . $_lang . '/' . 'default.' . $_format . '.php')) {
+                    $_file = $this->templatePath . '/'. $_themeString . $_lang . '/' . 'default.' . $_format . '.php';
+                } elseif ($_lang && file_exists($this->templatePath . '/default/' . $_lang . '/default.' . $_format . '.php')) {
+                    $_file = $this->templatePath . '/default/' . $_lang . '/default.' . $_format . '.php';
+                } else if ($_theme && $_templateName && file_exists($this->templatePath . '/' . $_themeString . $_templateName . '.' . $_format . '.php')) {
+                    $_file = $this->templatePath . '/' . $_themeString . $_templateName . '.' . $_format . '.php';
+                } elseif ($_templateName && file_exists($this->templatePath . '/default/' . $_templateName . '.' . $_format . '.php')) {
+                    $_file = $this->templatePath . '/default/' . $_templateName . '.' . $_format . '.php';
+                } elseif ($_theme && file_exists($this->templatePath . '/' . $_themeString . 'default.' . $_format . '.php')) {
+                    $_file = $this->templatePath . '/'. $_themeString . 'default.' . $_format . '.php';
+                } elseif (file_exists($this->templatePath . '/default/default.' . $_format . '.php')) {
+                    $_file = $this->templatePath . '/default/default.' . $_format . '.php';
+                }
+            } else { 
+                if ($_lang && $_theme && file_exists($this->templatePath . '/' . $_themeString . $_lang . '/' . $_templateName . '.php')) {
+                    $_file = $this->templatePath . '/' . $_themeString . $_lang . '/' . $_templateName . '.php';
+                } elseif ($_lang && file_exists($this->templatePath . '/default/' . $_lang . '/' . $_templateName . '.php')) {
+                    $_file = $this->templatePath . '/default/' . $_lang . '/' . $_templateName . '.php';
+                } elseif ($_lang && $_theme && file_exists($this->templatePath . '/' . $_themeString . $_lang . '/' . $_templateName . '.' . $_defaultFormat . '.php')) {
+                    $_file = $this->templatePath . '/' . $_themeString . $_lang . '/' . $_templateName . '.' . $_defaultFormat . '.php';
+                } elseif ($_lang && file_exists($this->templatePath . '/default/' . $_lang . '/' . $_templateName . '.' . $_defaultFormat . '.php')) {
+                    $_file = $this->templatePath . '/default/' . $_lang . '/' . $_templateName . '.' . $_defaultFormat . '.php';
+                } elseif ($_theme && file_exists($this->templatePath . '/' . $_themeString . $_templateName . '.php')) {
+                    $_file = $this->templatePath . '/' . $_themeString . $_templateName . '.php';
+                } elseif (file_exists($this->templatePath . '/default/' . $_templateName . '.php')) {
+                    $_file = $this->templatePath . '/default/' . $_templateName . '.php';
+                } elseif ($_theme && file_exists($this->templatePath . '/' . $_themeString . $_templateName . '.' . $_defaultFormat . '.php')) {
+                    $_file = $this->templatePath . '/' . $_themeString . $_templateName . '.' . $_defaultFormat . '.php';
+                } elseif (file_exists($this->templatePath . '/default/' . $_templateName . '.' . $_defaultFormat . '.php')) {
+                    $_file = $this->templatePath . '/default/' . $_templateName . '.' . $_defaultFormat . '.php';
+                }
             }
-        } else { 
-            if ($_lang && $_theme && file_exists($this->templatePath . '/' . $_themeString . $_lang . '/' . $_templateName . '.php')) {
-                $_file = $this->templatePath . '/' . $_themeString . $_lang . '/' . $_templateName . '.php';
-            } elseif ($_lang && file_exists($this->templatePath . '/default/' . $_lang . '/' . $_templateName . '.php')) {
-                $_file = $this->templatePath . '/default/' . $_lang . '/' . $_templateName . '.php';
-            } elseif ($_lang && $_theme && file_exists($this->templatePath . '/' . $_themeString . $_lang . '/' . $_templateName . '.' . $_defaultFormat . '.php')) {
-                $_file = $this->templatePath . '/' . $_themeString . $_lang . '/' . $_templateName . '.' . $_defaultFormat . '.php';
-            } elseif ($_lang && file_exists($this->templatePath . '/default/' . $_lang . '/' . $_templateName . '.' . $_defaultFormat . '.php')) {
-                $_file = $this->templatePath . '/default/' . $_lang . '/' . $_templateName . '.' . $_defaultFormat . '.php';
-            } elseif ($_theme && file_exists($this->templatePath . '/' . $_themeString . $_templateName . '.php')) {
-                $_file = $this->templatePath . '/' . $_themeString . $_templateName . '.php';
-            } elseif (file_exists($this->templatePath . '/default/' . $_templateName . '.php')) {
-                $_file = $this->templatePath . '/default/' . $_templateName . '.php';
-            } elseif ($_theme && file_exists($this->templatePath . '/' . $_themeString . $_templateName . '.' . $_defaultFormat . '.php')) {
-                $_file = $this->templatePath . '/' . $_themeString . $_templateName . '.' . $_defaultFormat . '.php';
-            } elseif (file_exists($this->templatePath . '/default/' . $_templateName . '.' . $_defaultFormat . '.php')) {
-                $_file = $this->templatePath . '/default/' . $_templateName . '.' . $_defaultFormat . '.php';
-            }
+            $this->viewCache[$viewHash] = $_file;
         }
 
         if (!$_file) {

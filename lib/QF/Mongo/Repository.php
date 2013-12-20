@@ -396,24 +396,31 @@ class Repository
             
             $entities[$rel[2]] = $repository->find($query, !empty($options['sort']) ? $options['sort'] : array());
                 
-            foreach ($entities[$rel[0]] as $fromEntity) {
-                foreach ($entities[$rel[2]] as $toEntity) {
+            $entityTmp = array();
+            
+            foreach ($entities[$rel[0]] as $fk => $fromEntity) {
+                foreach ($entities[$rel[2]] as $tk => $toEntity) {
+                    if (!isset($entityTmp[0][$fk.'_'.$relData[1]])) {
+                        $entityTmp[0][$fk.'_'.$relData[1]] = $fromEntity->get($relData[1]);
+                    }
+                    if (!isset($entityTmp[1][$tk.'_'.$relData[2]])) {
+                        $entityTmp[1][$tk.'_'.$relData[2]] = $toEntity->get($relData[2]);
+                    }
                     if (!empty($relData[3])) {
-                        if ($fromEntity->get($relData[1]) == $toEntity->get($relData[2])) {
+                        if ($entityTmp[0][$fk.'_'.$relData[1]] == $entityTmp[1][$tk.'_'.$relData[2]]) {
                             $fromEntity->set($rel[1], $toEntity);
                         }
                     } elseif(isset($relData[3])) {
-                        if ($relData[1] == '_id' && in_array($fromEntity->get($relData[1]), (array) $toEntity->get($relData[2]))) {
+                        if ($relData[1] == '_id' && in_array($entityTmp[0][$fk.'_'.$relData[1]], (array) $entityTmp[1][$tk.'_'.$relData[2]])) {
                             $fromEntity->add($rel[1], $toEntity);
-                        } elseif(in_array($toEntity->get($relData[2]), (array) $fromEntity->get($relData[1]))) {
+                        } elseif(in_array($entityTmp[1][$tk.'_'.$relData[2]], (array) $entityTmp[0][$fk.'_'.$relData[1]])) {
                             $fromEntity->add($rel[1], $toEntity);
                         }
                     } else {
-                        if ($fromEntity->get($relData[1]) == $toEntity->get($relData[2])) {
+                        if ($entityTmp[0][$fk.'_'.$relData[1]] == $entityTmp[1][$tk.'_'.$relData[2]]) {
                             $fromEntity->add($rel[1], $toEntity);
                         }
                     }
-
                 }
             }
         }

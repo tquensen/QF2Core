@@ -7,7 +7,11 @@ use \IteratorAggregate;
 abstract class Entity implements ArrayAccess, Serializable, IteratorAggregate
 {
     protected static $_types = array('boolean' => true, 'bool' => true, 'integer' => true, 'int' => true, 'float' => true, 'double' => true, 'string' => true, 'array' => true);
+    protected static $_propertySingleNames = array();
+    protected static $_camelcased = array();
+    protected static $_uncamelcased = array();
     protected $_unserializing = false;
+    
     protected static $_properties = array(
         /* example
         'property' => array(
@@ -26,7 +30,7 @@ abstract class Entity implements ArrayAccess, Serializable, IteratorAggregate
     );
     
     public function get($property) {
-        $method = 'get'.$this->_camelcase($property);
+        $method = 'get'.(isset(static::$_camelcased[$property]) ? static::$_camelcased[$property] : $this->_camelcase($property));
         if (method_exists($this, $method)) {
             return $this->$method();
         }
@@ -55,7 +59,7 @@ abstract class Entity implements ArrayAccess, Serializable, IteratorAggregate
             return $this->clear($property);
         }
         
-        $method = 'set'.$this->_camelcase($property);
+        $method = 'set'.(isset(static::$_camelcased[$property]) ? static::$_camelcased[$property] : $this->_camelcase($property));
         if (method_exists($this, $method)) {
             return $this->$method($value);
         }
@@ -90,7 +94,9 @@ abstract class Entity implements ArrayAccess, Serializable, IteratorAggregate
         } else {
             if (!empty(static::$_properties[$property]['type']) && is_string(static::$_properties[$property]['type'])) {
                 if (isset(self::$_types[static::$_properties[$property]['type']])) {            
-                    settype($value, static::$_properties[$property]['type']);
+                    if (gettype($value) != static::$_properties[$property]['type'] && (gettype($value) != 'double' || static::$_properties[$property]['type'] != 'float')) {
+                        settype($value, static::$_properties[$property]['type']);
+                    }
                 } elseif (!is_object($value) || !($value instanceof static::$_properties[$property]['type'])) {
                     $trace = debug_backtrace();
                     throw new \UnexpectedValueException('Error setting property: '.get_class($this).'::$' . $property .
@@ -110,15 +116,19 @@ abstract class Entity implements ArrayAccess, Serializable, IteratorAggregate
     
     public function add($property, $value) {
         if (empty(static::$_properties[$property])) {
-            foreach (static::$_properties as $prop => $data) {
-                if (!empty($data['collectionSingleName']) && $data['collectionSingleName'] == $property) {
-                    $property = $prop;
-                    break;
+            if (!empty(static::$_propertySingleNames[$property])) {
+                $property = static::$_propertySingleNames[$property];
+            } else {
+                foreach (static::$_properties as $prop => $data) {
+                    if (!empty($data['collectionSingleName']) && $data['collectionSingleName'] == $property) {
+                        $property = static::$_propertySingleNames[$property] = $prop;          
+                        break;
+                    }
                 }
             }
         }
         
-        $method = 'add'.$this->_camelcase($property);
+        $method = 'add'.(isset(static::$_camelcased[$property]) ? static::$_camelcased[$property] : $this->_camelcase($property));
         if (method_exists($this, $method)) {
             return $this->$method($value);
         }
@@ -142,7 +152,9 @@ abstract class Entity implements ArrayAccess, Serializable, IteratorAggregate
         
         if (!empty(static::$_properties[$property]['type']) && is_string(static::$_properties[$property]['type'])) {
             if (isset(self::$_types[static::$_properties[$property]['type']])) {            
-                settype($value, static::$_properties[$property]['type']);
+                if (gettype($value) != static::$_properties[$property]['type'] && (gettype($value) != 'double' || static::$_properties[$property]['type'] != 'float')) {
+                    settype($value, static::$_properties[$property]['type']);
+                }
             } elseif (!is_object($value) || !($value instanceof static::$_properties[$property]['type'])) {
                 $trace = debug_backtrace();
                 throw new \UnexpectedValueException('Error adding to property: '.get_class($this).'::$' . $property .
@@ -188,15 +200,11 @@ abstract class Entity implements ArrayAccess, Serializable, IteratorAggregate
             if (empty(static::$_properties[$property]['collectionUnique'])) {
                 $this->{$property}[] = $value;
             } elseif (static::$_properties[$property]['collectionUnique'] === true) {
-                $found = false;
-                foreach ($this->$property as $k => $v) {
-                    if ($v === $value) {
-                        unset($this->{$property}[$k]);
-                        $this->{$property}[$k] = $value;
-                        $found = true;
-                    }
-                } 
-                if (!$found) {
+                $found = array_search($value, $this->$property, true);
+                if ($found !== false) {
+                    unset($this->{$property}[$found]);
+                    $this->{$property}[$found] = $value;
+                } else {
                     $this->{$property}[] = $value;
                 }
             } else {
@@ -219,15 +227,19 @@ abstract class Entity implements ArrayAccess, Serializable, IteratorAggregate
     
     public function remove($property, $value) {
         if (empty(static::$_properties[$property])) {
-            foreach (static::$_properties as $prop => $data) {
-                if (!empty($data['collectionSingleName']) && $data['collectionSingleName'] == $property) {
-                    $property = $prop;
-                    break;
+            if (!empty(static::$_propertySingleNames[$property])) {
+                $property = static::$_propertySingleNames[$property];
+            } else {
+                foreach (static::$_properties as $prop => $data) {
+                    if (!empty($data['collectionSingleName']) && $data['collectionSingleName'] == $property) {
+                        $property = static::$_propertySingleNames[$property] = $prop;               
+                        break;
+                    }
                 }
             }
         }
          
-        $method = 'remove'.$this->_camelcase($property);
+        $method = 'remove'.(isset(static::$_camelcased[$property]) ? static::$_camelcased[$property] : $this->_camelcase($property));
         if (method_exists($this, $method)) {
             return $this->$method($value);
         }
@@ -291,10 +303,9 @@ abstract class Entity implements ArrayAccess, Serializable, IteratorAggregate
                         ' in ' . $trace[0]['file'] .
                         ' on line ' . $trace[0]['line']);
                 } else {
-                    foreach ($this->$property as $k => $v) {
-                        if ($v === $value) {
-                            unset($this->{$property}[$k]);
-                        }
+                    $found = array_search($value, $this->$property, true);
+                    if ($found !== false) {
+                        unset($this->{$property}[$found]);
                     }
                 }
             } else {
@@ -317,11 +328,11 @@ abstract class Entity implements ArrayAccess, Serializable, IteratorAggregate
     }
     
     public function clear($property) {
-        $method = 'unset'.$this->_camelcase($property);
+        $method = 'unset'.(isset(static::$_camelcased[$property]) ? static::$_camelcased[$property] : $this->_camelcase($property));
         if (method_exists($this, $method)) {
             return $this->$method();
         }
-        $method = 'clear'.$this->_camelcase($property);
+        $method = 'clear'.(isset(static::$_camelcased[$property]) ? static::$_camelcased[$property] : $this->_camelcase($property));
         if (method_exists($this, $method)) {
             return $this->$method();
         }
@@ -350,11 +361,11 @@ abstract class Entity implements ArrayAccess, Serializable, IteratorAggregate
     }
     
     public function is($property) {
-        $method = 'is'.$this->_camelcase($property);
+        $method = 'is'.(isset(static::$_camelcased[$property]) ? static::$_camelcased[$property] : $this->_camelcase($property));
         if (method_exists($this, $method)) {
             return $this->$method();
         }
-        $method = 'has'.$this->_camelcase($property);
+        $method = 'has'.(isset(static::$_camelcased[$property]) ? static::$_camelcased[$property] : $this->_camelcase($property));
         if (method_exists($this, $method)) {
             return $this->$method();
         }
@@ -463,7 +474,7 @@ abstract class Entity implements ArrayAccess, Serializable, IteratorAggregate
     {
         if (preg_match('/^(get|set|clear|unset|has|is|add|remove)(.+)$/', $method, $matches)) {
             $action = $matches[1];
-            $property = $this->_uncamelcase($matches[2]);
+            $property = (isset(static::$_uncamelcased[$matches[2]]) ? static::$_uncamelcased[$matches[2]] : $this->_uncamelcase($matches[2]));
             if ($action == 'set' || $action == 'add' || $action == 'remove') {
                 return $this->$action($property, isset($args[0]) ? $args[0] : null);
             } elseif ($action == 'unset') {
@@ -482,11 +493,11 @@ abstract class Entity implements ArrayAccess, Serializable, IteratorAggregate
     
     protected function _uncamelcase($word)
     {
-        return strtolower(preg_replace('~(?<=\\w)([A-Z])~', '_$1', $word));
+        return static::$_uncamelcased[$word] = strtolower(preg_replace('~(?<=\\w)([A-Z])~', '_$1', $word));
     }
     
     protected function _camelcase($word)
     {
-        return str_replace(" ", "", ucwords(strtr($word, "_-", "  ")));
+        return static::$_camelcased[$word] = str_replace(" ", "", ucwords(strtr($word, "_-", "  ")));
     }
 }
