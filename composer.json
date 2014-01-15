@@ -8,7 +8,7 @@
         }
     ],
     "autoload": {
-        "psr-0": { "QF": "lib/" }
+        "psr-4": { "QF\\": "" }
     },    
     "require": {
         
