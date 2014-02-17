@@ -1,6 +1,22 @@
 <?php
 namespace QF\Mongo;
 
+/**
+ * @property mixed $property some property
+ * 
+ * @method mixed get*() get property
+ * @method null set*(mixed $property) set property
+ * @method bool is*() check if property is set
+ * @method null clear*() clears/unsets property
+ * 
+ * @method null add*(mixed $property) adds a $property to property collection
+ * @method null remove*(mixed $property) removes a $property from property collection
+ * 
+ * @method int count*(array $query = array(), mixed $saveAs = null) returns number of related property
+ * @method array load*($query = array(), $sort = array(), $limit = null, $skip = null) loads related property
+ * @method null link*(mixed $property, $load = true, $save = null) links related $property
+ * @method null unlink*($property = true, $delete = false, $rawDelete = false, $save = null) unlinks related $property
+ */
 abstract class Entity extends \QF\Entity
 {
     protected $_databaseProperties = array();
@@ -52,16 +68,14 @@ abstract class Entity extends \QF\Entity
         if (preg_match('/^(count|load|link|unlink)(.+)$/', $method, $matches)) {
             $action = $matches[1];
             $property = (isset(static::$_uncamelcased[$matches[2]]) ? static::$_uncamelcased[$matches[2]] : $this->_uncamelcase($matches[2]));
-            if (static::getRelation($property)) {
-                if ($action == 'load') {
-                    return $this->loadRelated($property, isset($args[0]) ? $args[0] : array(), isset($args[1]) ? $args[1] : array(), isset($args[2]) ? $args[2] : null, isset($args[3]) ? $args[3] : null);
-                } elseif ($action == 'count') {
-                    return $this->countRelated($property, isset($args[0]) ? $args[0] : array(), isset($args[1]) ? $args[1] : array());
-                } elseif ($action == 'link') {
-                    return $this->linkRelated($property, isset($args[0]) ? $args[0] : null, array_key_exists(1, $args) ? $args[1] : true, array_key_exists(2, $args) ? $args[2] : false);
-                } else {
-                    return $this->unlinkRelated($property, array_key_exists(0, $args) ? $args[0] : true, array_key_exists(1, $args) ? $args[1] : false, array_key_exists(2, $args) ? $args[2] : true);
-                }
+            if ($action == 'load') {
+                return $this->loadRelated($property, isset($args[0]) ? $args[0] : array(), isset($args[1]) ? $args[1] : array(), isset($args[2]) ? $args[2] : null, isset($args[3]) ? $args[3] : null);
+            } elseif ($action == 'count') {
+                return $this->countRelated($property, isset($args[0]) ? $args[0] : array(), isset($args[1]) ? $args[1] : array());
+            } elseif ($action == 'link') {
+                return $this->linkRelated($property, isset($args[0]) ? $args[0] : null, array_key_exists(1, $args) ? $args[1] : true, array_key_exists(2, $args) ? $args[2] : false);
+            } else {
+                return $this->unlinkRelated($property, array_key_exists(0, $args) ? $args[0] : true, array_key_exists(1, $args) ? $args[1] : false, array_key_exists(2, $args) ? $args[2] : true);
             }
         }
         return parent::__call($method, $args);
@@ -171,6 +185,18 @@ abstract class Entity extends \QF\Entity
      */
     public function loadRelated($relation, $query = array(), $sort = array(), $limit = null, $skip = null)
     {
+        if (empty(static::$_properties[$relation])) {
+            if (!empty(static::$_propertySingleNames[$relation])) {
+                $relation = static::$_propertySingleNames[$relation];
+            } else {
+                foreach (static::$_properties as $prop => $data) {
+                    if (!empty($data['collectionSingleName']) && $data['collectionSingleName'] == $relation) {
+                        $relation = static::$_propertySingleNames[$relation] = $prop;          
+                        break;
+                    }
+                }
+            }
+        }
         if (!$relationInfo = static::getRelation($relation)) {
             throw new \Exception('Unknown relation "'.$relation.'" for model '.get_class($this));
         }
@@ -204,6 +230,18 @@ abstract class Entity extends \QF\Entity
      */
     public function countRelated($relation, $query = array(), $saveAs = null)
     {
+        if (empty(static::$_properties[$relation])) {
+            if (!empty(static::$_propertySingleNames[$relation])) {
+                $relation = static::$_propertySingleNames[$relation];
+            } else {
+                foreach (static::$_properties as $prop => $data) {
+                    if (!empty($data['collectionSingleName']) && $data['collectionSingleName'] == $relation) {
+                        $relation = static::$_propertySingleNames[$relation] = $prop;          
+                        break;
+                    }
+                }
+            }
+        }
         if (!$relationInfo = static::getRelation($relation)) {
             throw new \Exception('Unknown relation "'.$relation.'" for model '.get_class($this));
         }
@@ -239,6 +277,18 @@ abstract class Entity extends \QF\Entity
      */
     public function linkRelated($relation, $related, $load = true, $save = null)
     {
+        if (empty(static::$_properties[$relation])) {
+            if (!empty(static::$_propertySingleNames[$relation])) {
+                $relation = static::$_propertySingleNames[$relation];
+            } else {
+                foreach (static::$_properties as $prop => $data) {
+                    if (!empty($data['collectionSingleName']) && $data['collectionSingleName'] == $relation) {
+                        $relation = static::$_propertySingleNames[$relation] = $prop;          
+                        break;
+                    }
+                }
+            }
+        }
         if (!$relationInfo = static::getRelation($relation)) {
             throw new \Exception('Unknown relation "'.$relation.'" for model '.get_class($this));
         }
@@ -428,6 +478,18 @@ abstract class Entity extends \QF\Entity
      */
     public function unlinkRelated($relation, $related = true, $delete = false, $rawDelete = false, $save = null)
     {
+        if (empty(static::$_properties[$relation])) {
+            if (!empty(static::$_propertySingleNames[$relation])) {
+                $relation = static::$_propertySingleNames[$relation];
+            } else {
+                foreach (static::$_properties as $prop => $data) {
+                    if (!empty($data['collectionSingleName']) && $data['collectionSingleName'] == $relation) {
+                        $relation = static::$_propertySingleNames[$relation] = $prop;          
+                        break;
+                    }
+                }
+            }
+        }
         if (!$relationInfo = static::getRelation($relation)) {
             throw new \Exception('Unknown relation "'.$relation.'" for model '.get_class($this));
         }

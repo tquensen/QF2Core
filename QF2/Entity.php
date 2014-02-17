@@ -4,6 +4,17 @@ use \ArrayAccess;
 use \Serializable;
 use \IteratorAggregate;
 
+/**
+ * @property mixed $property some property
+ * 
+ * @method mixed get*() get property
+ * @method null set*(mixed $property) set property
+ * @method bool is*() check if property is set
+ * @method null clear*() clears/unsets property
+ * 
+ * @method null add*(mixed $property) adds a $property to property collection
+ * @method null remove*(mixed $property) removes a $property from property collection
+ */
 abstract class Entity implements ArrayAccess, Serializable, IteratorAggregate
 {
     protected static $_types = array('boolean' => true, 'bool' => true, 'integer' => true, 'int' => true, 'float' => true, 'double' => true, 'string' => true, 'array' => true);

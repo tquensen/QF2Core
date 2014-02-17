@@ -8,7 +8,7 @@
         }
     ],
     "autoload": {
-        "psr-4": { "QF\\": "" }
+        "psr-4": { "QF\\": "QF2" }
     },    
     "require": {
         
