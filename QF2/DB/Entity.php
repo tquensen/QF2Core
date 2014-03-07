@@ -62,7 +62,7 @@ abstract class Entity extends \QF\Entity
     {
         if (preg_match('/^(count|load|link|unlink)(.+)$/', $method, $matches)) {
             $action = $matches[1];
-            $property = (isset(static::$_uncamelcased[$matches[2]]) ? static::$_uncamelcased[$matches[2]] : $this->_uncamelcase($matches[2]));
+            $property = $this->_uncamelcase($matches[2]);
             if ($action == 'load') {
                 return $this->loadRelated($property, isset($args[0]) ? $args[0] : null, isset($args[1]) ? $args[1] : array(), isset($args[2]) ? $args[2] : null, isset($args[3]) ? $args[3] : null, isset($args[4]) ? $args[4] : null);
             } elseif ($action == 'count') {

@@ -149,7 +149,7 @@ class Core
         if ($isMainRoute) {
             $this->currentRoute = $route;
             $this->currentRouteParameter = $parameter;
-            $this->currentRouteService = $routeData['controller'];
+            $this->currentRouteService = $routeData['service'];
             $this->currentRouteAction = $routeData['action'];
         }
         
