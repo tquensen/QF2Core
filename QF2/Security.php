@@ -201,7 +201,7 @@ class Security
     public function checkRouteRights($routeData)
     {
         if ((empty($routeData['rights']) && $this->secureDefault) || (!empty($routeData['rights']) && !$this->userHasRight($routeData['rights']))) {        
-            if ($this->getRole() === 'GUEST') {
+            if ($this->userHasRight('guest')) {
                 throw new HttpException('login required', 401);
             } else {
                 throw new HttpException('permission denied', 403);
