@@ -214,7 +214,7 @@ class MapReduce
             $options['scope'] = $this->scope;
         }
         
-        $phpOptions = $this->timeout > 0 ? array('timeout' => $this->timeout) : array('timeout' => 0);
+        $phpOptions = $this->timeout > 0 ? array('socketTimeoutMS' => $this->timeout) : array('timeout' => -1);
 
         $this->result = $this->db->command($options, $phpOptions);
         

@@ -24,6 +24,7 @@ class Form
         $this->options['action'] = !empty($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '';
         $this->options['wrapper'] = 'div';
         $this->options['showGlobalErrors'] = true;
+        $this->options['forceGlobalErrors'] = false;
         $this->options['requiredMark'] = ' * ';
         $this->options['useFormToken'] = true;
         $this->options['uniqueFormToken'] = false;
@@ -122,9 +123,6 @@ class Form
     {
         $this->elements[$element->getName()] = $element;
         $element->setForm($this);
-        if ($this->getOption('forceGlobalErrors')) {
-            $element->globalErrors = true;
-        }
         return $this;
     }
 

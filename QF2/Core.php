@@ -101,7 +101,21 @@ class Core
             return $routes;
         }
         return isset($routes[$route]) ? $routes[$route] : null;
-    }  
+    }
+
+    /**
+     *
+     * @param string $slot the key of the slot to get
+     * @return mixed the slots array or a specifig slot (if $slot is set)
+     */
+    public function getSlot($slot = null)
+    {
+        $widgets = $this->widgets;
+        if (!$slot) {
+            return $widgets;
+        }
+        return isset($widgets[$slot]) ? $widgets[$slot] : array();
+    }
 
     /**
      * redirects to the given url (by setting a location http header)
@@ -482,6 +496,7 @@ class Core
     public function setView($view)
     {
         $this->view = $view;
+        $view->setCore($this);
     }
     
     public function setEventDispatcher($eventDispatcher)

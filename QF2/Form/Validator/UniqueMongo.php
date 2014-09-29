@@ -19,7 +19,7 @@ class UniqueMongo extends Validator
             try
             {
                 $found = $entity->getRepository($entity->getDB())->findOne($property, $value);
-                if (!$found || $found->{$found->getIdentifier()} == $entity->{$entity->getIdentifier()}) {
+                if (!$found || $found->_id == $entity->_id) {
                     return true;
                 }
             }

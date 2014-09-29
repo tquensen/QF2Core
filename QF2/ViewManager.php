@@ -6,7 +6,7 @@ use \QF\Exception\HttpException;
 class ViewManager
 {
 
-    protected $container = null;
+    protected $core = null;
     protected $i18n = null;
     
     protected $parameter = array();
@@ -22,6 +22,8 @@ class ViewManager
     
     protected $templatePath = null;
     protected $webPath = null;
+
+    protected $slotContents = array();
 
     protected $modules = array();
 
@@ -143,8 +145,7 @@ class ViewManager
 
         extract($parameter, \EXTR_OVERWRITE);
         $view = $this;
-        $c = $this->getContainer();
-        $qf = $c['core'];
+        $qf = $this->getCore();
         ob_start();
         try {
             require($_file);
@@ -242,8 +243,7 @@ class ViewManager
         extract($this->parameter, \EXTR_OVERWRITE);
         extract($parameter, \EXTR_OVERWRITE);
         $view = $this;
-        $c = $this->getContainer();
-        $qf = $c['core'];
+        $qf = $this->getCore();
         ob_start();
         try {
             require($_file);
@@ -253,10 +253,44 @@ class ViewManager
         }
         return ob_get_clean();
     }
-    
-    public function getContainer()
+
+    /**
+     * set the (parsed) contents of a slot
+     * if $content === null, the widgets defined for this slot will be called and parsed
+     * if $content == false or an empty string, no content will be rendered if the slog is called
+     *
+     * @param string $slot
+     * @param string $content
+     */
+    public function setSlot($slot, $content = false)
     {
-        return $this->container;
+        if ($content === null) {
+            unset($this->slotContents[$slot]);
+        }
+        $this->slotContents[$slot] = $content ?: '';
+    }
+
+    /**
+     * return the (parsed) contents of a slot
+     * if setSlot() was called for this slot, that content (or an empty string for $content=false) will be returned,
+     * otherwise the widgets defined for this slot will be called and parsed with the given $parameter and $glue values
+     *
+     * @param type $slot
+     * @param type $parameter
+     * @param type $glue
+     * @return type
+     */
+    public function getSlot($slot, $parameter = array(), $glue = false)
+    {
+        if (isset($this->slotContents[$slot])) {
+            return $this->slotContents[$slot];
+        }
+        return $this->getCore()->callSlot($slot, $parameter, $glue ?: '');
+    }
+    
+    public function getCore()
+    {
+        return $this->core;
     }
     
     public function getI18n()
@@ -319,9 +353,9 @@ class ViewManager
         return $this->webPath;
     }
     
-    public function setContainer($container)
+    public function setCore($core)
     {
-        $this->container = $container;
+        $this->core = $core;
     }
     
     public function setI18n($i18n)

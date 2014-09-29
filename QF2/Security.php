@@ -145,8 +145,7 @@ class Security
                     if (!$this->checkRights($givenRights, $right, !$and)) {
                         return false;
                     }
-                }
-                if (!in_array($right, (array) $givenRights)) {
+                } elseif (!in_array($right, (array) $givenRights)) {
                     return false;
                 }
             }
@@ -157,8 +156,7 @@ class Security
                     if ($this->checkRights($givenRights, $right, !$and)) {
                         return true;
                     }
-                }
-                if (in_array($right, (array) $givenRights)) {
+                } elseif (in_array($right, (array) $givenRights)) {
                     return true;
                 }
             }
@@ -202,9 +200,9 @@ class Security
     {
         if ((empty($routeData['rights']) && $this->secureDefault) || (!empty($routeData['rights']) && !$this->userHasRight($routeData['rights']))) {        
             if ($this->userHasRight('guest')) {
-                throw new HttpException('login required', 401);
+                throw new Exception\HttpException('login required', 401);
             } else {
-                throw new HttpException('permission denied', 403);
+                throw new Exception\HttpException('permission denied', 403);
             }
         }
     }
