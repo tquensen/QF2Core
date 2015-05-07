@@ -128,7 +128,7 @@ class Cli
         }
 
         return array(
-            'class' => $taskData['class'],
+            'service' => $taskData['service'],
             'task' => $taskData['task'],
             'parameter' => $this->prepareParameters(
                 isset($taskData['parameter']) ? (array)$taskData['parameter'] : array(),
