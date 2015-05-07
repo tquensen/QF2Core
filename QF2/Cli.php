@@ -6,7 +6,7 @@ class Cli
 
     /**
      *
-     * @var \Pimple
+     * @var \Pimple\Container
      */
     protected $container = null;
     
@@ -56,14 +56,25 @@ class Cli
             throw new \Exception('task not found');
         }
 
-        foreach ($argv as $arg) {
+        for ($i = 0, $j = count($argv); $i < $j; $i++) {
+            $arg = $argv[$i];
+
             // --foo --bar=baz
             if (substr($arg, 0, 2) == '--') {
                 $eqPos = strpos($arg, '=');
                 // --foo
                 if ($eqPos === false) {
                     $key = substr($arg, 2);
-                    $value = isset($out[$key]) ? $out[$key] : true;
+                    // --foo value
+                    if ($i + 1 < $j && $argv[$i + 1][0] !== '-')
+                    {
+                        $value = $argv[$i + 1];
+                        $i++;
+                    }
+                    else
+                    {
+                        $value = isset($out[$key]) ? $out[$key] : true;
+                    }
                     $out[$key] = $value;
                 }
                 // --bar=baz
@@ -88,6 +99,12 @@ class Cli
                         $key = $char;
                         $value = isset($out[$key]) ? $out[$key] : true;
                         $out[$key] = $value;
+                    }
+                    // -a value1 -abc value2
+                    if ($i + 1 < $j && $argv[$i + 1][0] !== '-')
+                    {
+                        $out[$key]      = $argv[$i + 1];
+                        $i++;
                     }
                 }
             }
@@ -151,13 +168,21 @@ class Cli
 //        }
         return array_merge($parameters, $values);
     }
-    
+
+    /**
+     *
+     * @return \Pimple\Container
+     */
     public function getContainer()
     {
         return $this->container;
     }
-    
-    public function setContainer($container)
+
+    /**
+     *
+     * @param \Pimple\Container $container
+     */
+    public function setContainer(\Pimple\Container $container)
     {
         $this->container = $container;
     }

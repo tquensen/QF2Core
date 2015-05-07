@@ -134,8 +134,8 @@ class Core
      *
      * @param string $route the name of the route to link to
      * @param array $params parameter to add to the url
-     * @param mixed $language the target language, null for current, false for default/none, string for a specific language (must exist in$qf_config['languages'])
      * @param int $code the code to send (302 (default) or 301 (permanent redirect))
+     * @param mixed $language the target language, null for current, false for default/none, string for a specific language (must exist in$qf_config['languages'])
      */
     public function redirectRoute($route, $params = array(), $code = 302, $language = null)
     {

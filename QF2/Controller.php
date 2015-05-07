@@ -4,7 +4,7 @@ namespace QF;
 class Controller
 {
     /**
-     * @var \Pimple the di container
+     * @var \Pimple\Container the di container
      */
     protected $container = null;
             
@@ -19,9 +19,9 @@ class Controller
 
     /**
      * 
-     * @param \Pimple $container
+     * @param \Pimple\Container $container
      */
-    public function setContainer(\Pimple $container)
+    public function setContainer(\Pimple\Container $container)
     {
         $this->container = $container;
     }
