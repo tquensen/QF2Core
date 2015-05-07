@@ -52,7 +52,7 @@ class Cli
         if (!$task || !$taskData = $this->getTask($task)) {
             throw new \Exception('task '.$task.' not found');
         }
-        if (empty($taskData['class']) || empty($taskData['task'])) {
+        if (empty($taskData['service']) || empty($taskData['task'])) {
             throw new \Exception('task not found');
         }
 
