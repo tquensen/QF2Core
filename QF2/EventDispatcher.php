@@ -71,6 +71,10 @@ class EventDispatcher
 
     protected function loadListeners($event)
     {
+        if (!isset($this->listeners[$event])) {
+            $this->listeners[$event] = array();
+        }
+
         if (empty($this->unloadedListeners[$event])) {
             return;
         }
